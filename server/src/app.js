@@ -8,6 +8,7 @@ const checkpointRoutes = require('./routes/checkpointRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const db = require('./config/db');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 
@@ -21,8 +22,12 @@ const apiLimiter = rateLimit({
 });
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
 app.use('/api/', apiLimiter);
 
 // Routes
@@ -48,6 +53,18 @@ app.get('/api/health', async (req, res) => {
       message: 'Database connection failed' 
     });
   }
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.status || 500).json({
+    success: false,
+    error: {
+      code: err.code || 'SERVER_ERROR',
+      message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message
+    }
+  });
 });
 
 module.exports = app;

@@ -377,7 +377,13 @@ const submitQuiz = async (req, res) => {
   try {
     const { sessionId } = req.params;
     const { answers } = req.body;
+    const userId = req.user.id;
     
+    const sessionRes = await db.query('SELECT * FROM learning_sessions WHERE id = $1 AND user_id = $2', [sessionId, userId]);
+    if (sessionRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Session not found' } });
+    }
+
     // For prototype, we simply grade it and return score
     let score = 0;
     if (answers && Array.isArray(answers)) {

@@ -38,7 +38,10 @@ const submitAnswer = async (req, res) => {
       const currentConcept = conceptRes.rows[0];
 
       // Check if session is a binary search session
-      const sessionRes = await client.query('SELECT topic FROM learning_sessions WHERE id = $1', [currentConcept.session_id]);
+      const sessionRes = await client.query('SELECT topic, user_id FROM learning_sessions WHERE id = $1', [currentConcept.session_id]);
+      if (String(sessionRes.rows[0].user_id) !== String(userId)) {
+        throw { status: 403, message: 'Unauthorized access to this session' };
+      }
       const sessionTopic = sessionRes.rows[0].topic;
 
       // 2. Evaluation

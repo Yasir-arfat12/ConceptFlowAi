@@ -46,8 +46,14 @@ const register = async (req, res) => {
     // Generate JWT
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax', // Must be lax (or strict) for most localdev setups to work without explicit HTTPS, though strict is often fine, let's use strict
+      maxAge: 24 * 60 * 60 * 1000
+    });
+
     res.status(201).json({
-      token,
       user: {
         id: user.id,
         name: user.name,
@@ -88,8 +94,14 @@ const login = async (req, res) => {
     // Generate JWT
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000
+    });
+
     res.status(200).json({
-      token,
       user: {
         id: user.id,
         name: user.name,
@@ -119,8 +131,17 @@ const getMe = async (req, res) => {
   }
 };
 
+const logout = async (req, res) => {
+  res.cookie('token', '', {
+    httpOnly: true,
+    expires: new Date(0)
+  });
+  res.status(200).json({ message: 'Logged out successfully' });
+};
+
 module.exports = {
   register,
   login,
-  getMe
+  getMe,
+  logout
 };
