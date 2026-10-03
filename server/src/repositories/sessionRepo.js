@@ -15,11 +15,26 @@ export async function getSessionById(sessionId, userId) {
   const { rows } = await query(
     `SELECT ls.*, 
       COALESCE(
-        json_agg(sc ORDER BY sc.position) FILTER (WHERE sc.id IS NOT NULL),
+        json_agg(
+          json_build_object(
+            'id', sc.id,
+            'session_id', sc.session_id,
+            'position', sc.position,
+            'title', sc.title,
+            'explanation', sc.explanation,
+            'key_points', sc.key_points,
+            'example', sc.example,
+            'code_snippet', sc.code_snippet,
+            'status', sc.status,
+            'completed_at', sc.completed_at,
+            'checkpoint', CASE WHEN cp.id IS NOT NULL THEN json_build_object('id', cp.id, 'question', cp.question) ELSE NULL END
+          ) ORDER BY sc.position
+        ) FILTER (WHERE sc.id IS NOT NULL),
         '[]'::json
       ) as concepts
      FROM learning_sessions ls
      LEFT JOIN session_concepts sc ON sc.session_id = ls.id
+     LEFT JOIN checkpoints cp ON cp.session_concept_id = sc.id
      WHERE ls.id = $1 AND ls.user_id = $2
      GROUP BY ls.id`,
     [sessionId, userId]
@@ -62,7 +77,8 @@ export async function updateSessionStatus(client, sessionId, status, position) {
 
 export async function getCurrentConcept(sessionId, userId) {
   const { rows } = await query(
-    `SELECT sc.*, c.question, c.id as checkpoint_id
+    `SELECT sc.*, 
+      CASE WHEN c.id IS NOT NULL THEN json_build_object('id', c.id, 'question', c.question) ELSE NULL END as checkpoint
      FROM session_concepts sc
      LEFT JOIN checkpoints c ON c.session_concept_id = sc.id
      JOIN learning_sessions ls ON ls.id = sc.session_id

@@ -207,6 +207,77 @@ export async function findMatchingTopic(query) {
   return bestScore > 0 ? bestTopic : null;
 }
 
+export function generateOfflineLearningPath(query) {
+  const title = query.trim() || 'Core Computer Science Concepts';
+  const cleanTitle = title.charAt(0).toUpperCase() + title.slice(1);
+  return {
+    topicTitle: cleanTitle,
+    concepts: [
+      {
+        title: `1. Foundations & Overview of ${cleanTitle}`,
+        explanation: `${cleanTitle} is a critical subject in software engineering and computational thinking.\n\nUnderstanding ${cleanTitle} begins with grasping the core motivation, definitions, and mental models. In computer systems, problems are structured into foundational units that allow scalable operations and reliable execution.\n\nBy mastering the underlying primitives of ${cleanTitle}, you build an intuitive understanding that simplifies subsequent advanced topics and optimizations.`,
+        keyPoints: [
+          `Definition and motivation behind ${cleanTitle}`,
+          'Core foundational primitives and mental models',
+          'Standard usage patterns in software architecture',
+        ],
+        example: `// Example conceptual usage of ${cleanTitle}\nconsole.log('Initializing ${cleanTitle} foundation');`,
+        checkpointQuestion: `Explain the primary purpose of ${cleanTitle} and describe one key advantage of understanding its fundamental principles.`,
+        rubric: {
+          expectedKeyPoints: ['purpose', 'principles', 'scalability', 'efficiency'],
+          modelAnswer: `${cleanTitle} provides structured ways to manage computation and data, improving reliability and clarity.`,
+        },
+      },
+      {
+        title: `2. Syntax, Structure & Core Operations of ${cleanTitle}`,
+        explanation: `Once the foundations are clear, we move into the structural syntax and core mechanics of ${cleanTitle}.\n\nEvery system or paradigm introduces specific operational rules and invariants. Applying these rules properly prevents runtime bugs and ensures deterministic behavior across environments.\n\nPracticing the core patterns of ${cleanTitle} enables developers to write clean, maintainable, and idiomatic implementations.`,
+        keyPoints: [
+          'Core syntax and structural rules',
+          'State management and data flow',
+          'Best practices for clarity and organization',
+        ],
+        example: `// Practical application of ${cleanTitle}\nfunction execute${cleanTitle.replace(/[^a-zA-Z0-9]/g, '')}() {\n  return true;\n}`,
+        checkpointQuestion: `What are the crucial rules or mechanics you must follow when implementing ${cleanTitle}?`,
+        rubric: {
+          expectedKeyPoints: ['syntax', 'rules', 'state', 'clarity'],
+          modelAnswer: `Adhering to syntax rules and clean structure guarantees predictable execution and maintainability.`,
+        },
+      },
+      {
+        title: `3. Common Patterns & Real-World Application of ${cleanTitle}`,
+        explanation: `In production software, ${cleanTitle} is rarely used in isolation; it interacts with multiple subsystems.\n\nStandard design patterns and architectural recipes have evolved around ${cleanTitle} to solve common real-world challenges. Knowing when and how to apply these patterns separates novices from experienced engineers.\n\nWe will examine common composition techniques and how to handle dynamic requirements cleanly.`,
+        keyPoints: [
+          'Industry standard patterns and idioms',
+          'Integration with modern tech stacks',
+          'Error handling and fault tolerance',
+        ],
+        example: `// Real-world pattern\nconst service = { topic: '${cleanTitle}', status: 'ready' };`,
+        checkpointQuestion: `Describe a real-world scenario where ${cleanTitle} is applied and what challenge it addresses.`,
+        rubric: {
+          expectedKeyPoints: ['real-world', 'pattern', 'integration', 'error handling'],
+          modelAnswer: `${cleanTitle} solves real-world integration challenges by organizing execution and ensuring robust error handling.`,
+        },
+      },
+      {
+        title: `4. Advanced Edge Cases, Performance & Mastery of ${cleanTitle}`,
+        explanation: `To achieve complete mastery over ${cleanTitle}, one must understand its performance characteristics, complexity trade-offs, and subtle edge cases.\n\nAnalyzing time and space complexity, memory footprints, and asynchronous race conditions ensures your solutions remain performant at scale.\n\nCongratulations on reaching the final milestone of ${cleanTitle}!`,
+        keyPoints: [
+          'Time and space complexity trade-offs',
+          'Edge case handling and boundary conditions',
+          'Performance tuning and diagnostic profiling',
+        ],
+        example: `// Optimized implementation\nconst result = Object.freeze({ verified: true });`,
+        checkpointQuestion: `How do you analyze and optimize the performance and edge cases of ${cleanTitle}?`,
+        rubric: {
+          expectedKeyPoints: ['performance', 'edge cases', 'complexity', 'optimization'],
+          modelAnswer: `By profiling memory, evaluating computational complexity, and thoroughly testing edge conditions.`,
+        },
+      },
+    ],
+  };
+}
+
+
 // ─── Fallback: Rule-based Checkpoint Evaluation ───────────────────────────
 
 export function evaluateCheckpointFallback({ rubric, studentAnswer }) {

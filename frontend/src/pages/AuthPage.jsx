@@ -12,24 +12,25 @@ function StarfallCanvas() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext ? canvas.getContext('2d') : null;
+    if (!ctx) return;
     let animationFrameId;
     let width = 0;
     let height = 0;
 
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const isReduced = mediaQuery.matches;
+    const mediaQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: true };
+    const isReduced = mediaQuery?.matches ?? true;
 
     const particles = [];
-    const particleCount = window.innerWidth < 768 ? 180 : 500; // fewer gradients per frame on phones
+    const particleCount = typeof window !== 'undefined' && window.innerWidth < 768 ? 180 : 500;
 
     const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
-      width = window.innerWidth;
-      height = window.innerHeight;
+      const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+      width = typeof window !== 'undefined' ? window.innerWidth || 1024 : 1024;
+      height = typeof window !== 'undefined' ? window.innerHeight || 768 : 768;
       canvas.width = width * dpr;
       canvas.height = height * dpr;
-      ctx.scale(dpr, dpr);
+      if (ctx && ctx.scale) ctx.scale(dpr, dpr);
     };
 
     const initParticles = () => {
@@ -151,9 +152,6 @@ export default function AuthPage({ navigateTo }) {
     try {
       if (!isLogin) {
         await api.signup(data);
-        setIsLogin(true);
-        setSubmitting(false);
-        return;
       }
 
       const { token, user } = await api.login({ email: data.email, password: data.password });

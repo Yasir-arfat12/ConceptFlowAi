@@ -1,5 +1,6 @@
 // src/config/env.js
 // Validates and exports all environment variables. Fails fast on missing required values.
+import 'dotenv/config';
 import { z } from 'zod';
 
 const schema = z.object({

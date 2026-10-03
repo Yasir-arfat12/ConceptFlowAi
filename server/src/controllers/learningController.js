@@ -64,7 +64,7 @@ export const dashboard = asyncHandler(async (req, res) => {
 
 export const progress = asyncHandler(async (req, res) => {
   const data = await getProgress(req.userId);
-  return ok(res, { sessions: data });
+  return ok(res, { progress: data, sessions: data });
 });
 
 export const suggestedTopics = asyncHandler(async (_req, res) => {

@@ -13,7 +13,7 @@ export function validate(schema) {
         field: i.path.join('.'),
         message: i.message,
       }));
-      return next(badRequest('Validation failed', 'VALIDATION_ERROR'));
+      return next(badRequest('Validation failed', 'VALIDATION_ERROR', details));
     }
     // Attach parsed values
     req.validated = result.data;

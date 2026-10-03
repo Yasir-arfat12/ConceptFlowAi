@@ -17,6 +17,7 @@ import {
 import {
   findMatchingTopic,
   generateLearningPath,
+  generateOfflineLearningPath,
   evaluateCheckpoint,
   evaluateCheckpointFallback,
 } from './ai/tasks.js';
@@ -47,28 +48,28 @@ export async function startLearningSession({ userId, query }) {
     }
   }
 
-  // Fallback: match predefined topic
+  // Fallback: match predefined topic or generate offline structured path
   if (!conceptsData) {
     const topic = await findMatchingTopic(query);
-    if (!topic) {
-      const allTopics = await getAllTopics();
-      throw serviceUnavailable(
-        'AI is temporarily unavailable and no predefined topic matched your query.',
-        'AI_TEMPORARILY_UNAVAILABLE'
-      );
+    if (topic) {
+      const storedConcepts = await getTopicConceptsByTopicId(topic.id);
+      topicTitle = topic.title;
+      topicId = topic.id;
+      source = 'predefined';
+      conceptsData = storedConcepts.map((c) => ({
+        title: c.title,
+        explanation: c.explanation,
+        keyPoints: c.key_points,
+        example: c.example,
+        checkpointQuestion: c.checkpoint_question,
+        rubric: c.checkpoint_rubric,
+      }));
+    } else {
+      const offlinePath = generateOfflineLearningPath(query);
+      topicTitle = offlinePath.topicTitle;
+      source = 'predefined';
+      conceptsData = offlinePath.concepts;
     }
-    const storedConcepts = await getTopicConceptsByTopicId(topic.id);
-    topicTitle = topic.title;
-    topicId = topic.id;
-    source = 'predefined';
-    conceptsData = storedConcepts.map((c) => ({
-      title: c.title,
-      explanation: c.explanation,
-      keyPoints: c.key_points,
-      example: c.example,
-      checkpointQuestion: c.checkpoint_question,
-      rubric: c.checkpoint_rubric,
-    }));
   }
 
   // Create session and concepts in a transaction

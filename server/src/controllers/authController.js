@@ -5,10 +5,12 @@ import { asyncHandler, ok } from '../utils/errors.js';
 
 const RegisterSchema = z.object({
   body: z.object({
-    firstName: z.string().min(1).optional(),
+    firstName: z.string().optional(),
     lastName: z.string().optional(),
-    email: z.string().email(),
-    password: z.string().min(8),
+    name: z.string().optional(),
+    email: z.string().email('Please enter a valid email address'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    confirm: z.string().optional(),
     age: z.union([z.string(), z.number()]).optional(),
     dob: z.string().optional(),
     address: z.string().optional(),
@@ -17,14 +19,14 @@ const RegisterSchema = z.object({
 
 const LoginSchema = z.object({
   body: z.object({
-    email: z.string().email(),
-    password: z.string().min(1),
+    email: z.string().email('Please enter a valid email address'),
+    password: z.string().min(1, 'Password is required'),
   }),
 });
 
 export const signup = asyncHandler(async (req, res) => {
-  const { firstName, lastName, email, password } = req.body;
-  const result = await register({ firstName, lastName, email, password });
+  const { firstName, lastName, name, email, password } = req.body;
+  const result = await register({ firstName, lastName, name, email, password });
   return ok(res, result, 201);
 });
 

@@ -98,6 +98,7 @@ export async function askDoubt({ sessionId, conceptId, userId, question }) {
     threadId: result.thread.id,
     question,
     answer: result.assistantMsg.content,
+    reply: result.assistantMsg.content,
     source: result.answerSource,
     createdAt: result.assistantMsg.created_at,
   };
@@ -105,15 +106,17 @@ export async function askDoubt({ sessionId, conceptId, userId, question }) {
 
 export async function getDoubtHistory(sessionConceptId, userId) {
   const thread = await getThreadForConcept(sessionConceptId, userId);
-  if (!thread) return { messages: [] };
+  if (!thread) return { messages: [], history: [] };
+  const formattedMessages = thread.messages.map((m) => ({
+    id: m.id,
+    role: m.role,
+    content: m.content,
+    source: m.source,
+    createdAt: m.created_at,
+  }));
   return {
     threadId: thread.id,
-    messages: thread.messages.map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      source: m.source,
-      createdAt: m.created_at,
-    })),
+    messages: formattedMessages,
+    history: formattedMessages,
   };
 }
