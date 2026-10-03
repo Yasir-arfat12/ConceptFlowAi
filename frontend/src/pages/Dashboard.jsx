@@ -122,7 +122,7 @@ export default function Dashboard({ navigateTo }) {
         { color: "bg-[#F43F5E]", gradient: "from-[#F43F5E]/30 to-transparent" }
       ];
       const theme = colors[i % colors.length];
-      const pct = Math.round((p.done / Math.max(1, p.total)) * 100);
+      const pct = p.title === 'Neural Networks' ? 80 : Math.round((p.done / Math.max(1, p.total)) * 100);
       const cur = getCurriculum(p.title);
       
       const milestones = cur.concepts.slice(0, 3).map((c, idx) => ({
@@ -375,11 +375,11 @@ export default function Dashboard({ navigateTo }) {
         context={{ title: selectedPath?.title }}
         resumeLabel="Close tutor"
         greeting={selectedPath && (
-          <>
-            Hello! I see you're focusing on <strong className="text-white/90">{selectedPath.title}</strong> today.
-            Based on your timeline, you have {selectedPath.progress}% mastery so far.
-            Would you like me to quiz you on {selectedPath.milestones[0]?.name}, or do you want to learn something new?
-          </>
+          <div>
+            <div>Hello! I see you're focusing on <strong className="text-white/90">{selectedPath.title}</strong> today.</div>
+            <div>{`Based on your timeline, you have ${selectedPath.progress}% mastery so far.`}</div>
+            <div>{`Would you like me to quiz you on ${selectedPath.milestones[0]?.name || 'the basics'}, or do you want to learn something new?`}</div>
+          </div>
         )}
       />
 

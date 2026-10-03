@@ -121,7 +121,16 @@ export default function Session({ params, goBack }) {
 
             {/* Quick Doubt Bar */}
             <div className="mt-8 pt-8 border-t border-white/5">
-              <h4 className="text-[13px] font-medium text-white/40 uppercase tracking-widest mb-3">Still confused?</h4>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-[13px] font-medium text-white/40 uppercase tracking-widest">Still confused?</h4>
+                <button
+                  type="button"
+                  onClick={() => setDoubtOpen(true)}
+                  className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-[12px] font-medium rounded-lg transition-colors cursor-pointer"
+                >
+                  Ask a Doubt
+                </button>
+              </div>
               <form onSubmit={submitQuickDoubt} className="flex items-center gap-3 bg-[#121212] border border-white/10 rounded-xl p-2 focus-within:border-white/20 focus-within:bg-[#161616] transition-colors">
                 <div className="pl-3">
                   <BrainCircuit className="w-5 h-5 text-zinc-400" aria-hidden="true" />

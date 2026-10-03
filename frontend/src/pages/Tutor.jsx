@@ -1,6 +1,7 @@
 import { BrainCircuit, Code, Calculator, Sparkles, Send, Bot, User, ArrowLeft } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { askTutor } from '../lib/tutorClient';
+import { matchTopic } from '../lib/curriculum';
 import clsx from 'clsx';
 
 const TUTORS = [
@@ -37,6 +38,10 @@ export default function Tutor({ navigateTo, goBack }) {
     if (!query.trim() || loading) return;
 
     const text = query.trim();
+    if (matchTopic(text)) {
+      navigateTo?.(`dashboard/session?topic=${encodeURIComponent(text)}`);
+      return;
+    }
     setQuery('');
     setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', text }]);
     setLoading(true);
@@ -93,7 +98,7 @@ export default function Tutor({ navigateTo, goBack }) {
             <p className="text-[15px] text-white/40 mb-10 text-center">Select a specialized tutor or ask a question directly.</p>
 
             <div className="flex flex-wrap justify-center gap-2">
-              {['Review my code snippet', 'Help me solve an equation', 'Explain this concept further'].map(suggestion => (
+              {['Review my code snippet', 'Help me solve an equation', 'Explain this concept further', 'Explain Quantum Entanglement'].map(suggestion => (
                 <button key={suggestion} onClick={() => setQuery(suggestion)} className="px-4 py-2 rounded-lg border border-white/5 bg-[#0A0A0A] hover:bg-[#111111] text-white/60 text-[13px] hover:text-white hover:border-white/10 transition-colors shadow-sm">
                   {suggestion}
                 </button>

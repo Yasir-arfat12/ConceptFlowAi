@@ -18,6 +18,7 @@ const PAGES = {
   'dashboard/assignments': lazy(() => import('./pages/Assignments')),
   'dashboard/quiz': lazy(() => import('./pages/Quiz')),
   'dashboard/planner': lazy(() => import('./pages/Planner')),
+  'dashboard/schedules': lazy(() => import('./pages/Planner')),
   'dashboard/doubts': lazy(() => import('./pages/Doubts')),
   'dashboard/career': lazy(() => import('./pages/Career')),
 };

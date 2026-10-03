@@ -51,7 +51,8 @@ export default function DoubtDrawer({ open, onClose, subtitle, greeting, context
       footer={
         <div className="p-5 border-t border-white/5 bg-[#050505]">
           <form onSubmit={send} className="relative flex items-center bg-white/[0.03] border border-white/10 rounded-2xl focus-within:border-white/20 focus-within:bg-white/[0.05] transition-all p-1">
-            <input id="doubt-input" type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type your doubt here..." autoComplete="off"
+            <label htmlFor="doubt-input" className="sr-only">Ask your doubt</label>
+            <input id="doubt-input" aria-label="Ask your doubt" type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type your doubt here..." autoComplete="off"
               className="w-full bg-transparent border-none pl-4 pr-12 py-3 text-[14px] text-white placeholder-white/30 focus:outline-none transition-all" />
             <button type="submit" disabled={!input.trim() || busy} aria-label="Send"
               className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl bg-white/10 text-white/70 hover:bg-white hover:text-black transition-colors disabled:opacity-30 disabled:hover:bg-white/10 disabled:hover:text-white/70">

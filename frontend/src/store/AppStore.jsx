@@ -30,7 +30,7 @@ export function createInitialState(now = Date.now()) {
     quizResults: [],
     plan: null,
     progress: {
-      'binary-search': { title: 'Binary Search', done: 0, total: 4, updatedAt: daysAgoISO(2, now) },
+      'binary-search': { title: 'Binary Search', done: 1, total: 4, updatedAt: daysAgoISO(2, now) },
       'neural-networks': { title: 'Neural Networks', done: 3, total: 4, updatedAt: daysAgoISO(1, now) },
     },
     sessions: durations.map((min, i) => ({

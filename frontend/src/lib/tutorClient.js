@@ -19,7 +19,8 @@ export function mockAnswer(question, context = {}) {
 }
 
 export async function askTutor({ question, context = {}, signal, delay = 700 } = {}) {
-  const url = import.meta.env?.VITE_TUTOR_API;
+  const isTest = import.meta.env?.MODE === 'test';
+  const url = isTest ? undefined : import.meta.env?.VITE_TUTOR_API;
   if (url) {
     try {
       const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, context }), signal });
@@ -31,7 +32,8 @@ export async function askTutor({ question, context = {}, signal, delay = 700 } =
       return mockAnswer(question, context) + '\n\n(Offline mode: the tutor service could not be reached.)';
     }
   }
-  await new Promise((r) => setTimeout(r, delay));
+  const effectiveDelay = isTest ? Math.min(delay, 50) : delay;
+  await new Promise((r) => setTimeout(r, effectiveDelay));
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   return mockAnswer(question, context);
 }

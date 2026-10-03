@@ -159,6 +159,7 @@ export default function LandingPage({ navigateTo }) {
             <div className="mt-6 flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-6">
               <button
                 onClick={() => navigateTo('auth')}
+                aria-label="REQUEST A DEMO"
                 style={{ "--duration": 3, "--light-width": "110px", "--light-color": "#fafafa", "--border-width": "1px", isolation: "isolate" }}
                 className="relative z-[3] overflow-hidden h-10 px-8 inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 group/star-button rounded-full border border-white/30 hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] cursor-pointer"
               >

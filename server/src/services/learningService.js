@@ -1,0 +1,229 @@
+/**
+ * Learning Service
+ * Core ConceptFlow business logic:
+ * - Create learning sessions
+ * - Manage concept state (active/locked/completed)
+ * - Track progress
+ * - Resume sessions
+ *
+ * PostgreSQL is the source of truth. AI provides content. Backend controls all state.
+ */
+const db = require('../config/db');
+const { binarySearchData } = require('../data/prebuiltBinarySearch');
+const { generateLearningPath, isConfigured: aiAvailable } = require('./aiService');
+
+const BINARY_SEARCH_KEYWORDS = ['binary search', 'binary-search', 'binarysearch'];
+
+/**
+ * Determines if a topic should use the prebuilt Binary Search content.
+ */
+function isPrebuiltTopic(topic) {
+  const normalized = topic.trim().toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ');
+  return BINARY_SEARCH_KEYWORDS.some((kw) => normalized.includes(kw));
+}
+
+/**
+ * Calculates progress percentage based on completed concepts.
+ */
+function calculateProgress(concepts) {
+  if (!concepts || concepts.length === 0) return 0;
+  const completed = concepts.filter((c) => c.status === 'completed').length;
+  return Math.round((completed / concepts.length) * 100);
+}
+
+/**
+ * Creates a learning session in a transaction.
+ * Returns the full session + concepts structure needed by the frontend.
+ */
+async function createLearningSession(userId, topic) {
+  const AI_MODE = process.env.AI_MODE || 'hybrid';
+
+  // Determine learning content source
+  let learningData;
+
+  if (AI_MODE === 'prebuilt' || (AI_MODE === 'hybrid' && isPrebuiltTopic(topic))) {
+    console.log(`[Learning] Using prebuilt content for: "${topic}"`);
+    learningData = {
+      topic: binarySearchData.topic,
+      concepts: binarySearchData.concepts,
+    };
+  } else if (aiAvailable) {
+    console.log(`[Learning] Generating AI learning path for: "${topic}"`);
+    learningData = await generateLearningPath(topic);
+  } else {
+    throw new Error('AI_NOT_CONFIGURED: Cannot generate learning path for non-prebuilt topics without an AI API key.');
+  }
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Create the session
+    const sessionResult = await client.query(
+      `INSERT INTO learning_sessions (user_id, topic, status, progress_percentage)
+       VALUES ($1, $2, 'active', 0)
+       RETURNING *`,
+      [userId, learningData.topic || topic]
+    );
+    const session = sessionResult.rows[0];
+
+    // 2. Insert all concepts (first = active, rest = locked)
+    const insertedConcepts = [];
+    for (let i = 0; i < learningData.concepts.length; i++) {
+      const c = learningData.concepts[i];
+      const status = i === 0 ? 'active' : 'locked';
+      const orderIndex = i + 1;
+
+      const conceptResult = await client.query(
+        `INSERT INTO learning_concepts
+          (session_id, title, content, examples, key_takeaways, order_index, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [session.id, c.title, c.content, c.examples || null, c.keyTakeaways || null, orderIndex, status]
+      );
+      const concept = conceptResult.rows[0];
+
+      // 3. Insert checkpoint for this concept
+      const cp = c.checkpoint;
+      const checkpointResult = await client.query(
+        `INSERT INTO checkpoints
+          (learning_concept_id, question, expected_keywords, order_index)
+         VALUES ($1, $2, $3, 1)
+         RETURNING id, question, expected_keywords`,
+        [concept.id, cp.question, JSON.stringify(cp.expectedKeywords || [])]
+      );
+      concept.checkpoints = checkpointResult.rows;
+
+      insertedConcepts.push(concept);
+    }
+
+    // 4. Set current_concept_id to the first (active) concept
+    const firstConcept = insertedConcepts[0];
+    await client.query(
+      'UPDATE learning_sessions SET current_concept_id = $1 WHERE id = $2',
+      [firstConcept.id, session.id]
+    );
+    session.current_concept_id = firstConcept.id;
+
+    await client.query('COMMIT');
+
+    return {
+      session,
+      concepts: insertedConcepts,
+      currentConcept: firstConcept,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Fetches a session with all its concepts and current state.
+ */
+async function getSessionWithConcepts(sessionId, userId) {
+  const sessionResult = await db.query(
+    'SELECT * FROM learning_sessions WHERE id = $1 AND user_id = $2',
+    [sessionId, userId]
+  );
+  if (sessionResult.rows.length === 0) return null;
+
+  const session = sessionResult.rows[0];
+  const conceptsResult = await db.query(
+    `SELECT lc.*, 
+      (SELECT json_agg(cp ORDER BY cp.order_index)
+       FROM checkpoints cp
+       WHERE cp.learning_concept_id = lc.id) AS checkpoints
+     FROM learning_concepts lc
+     WHERE lc.session_id = $1
+     ORDER BY lc.order_index ASC`,
+    [sessionId]
+  );
+
+  const concepts = conceptsResult.rows;
+  const currentConcept = concepts.find((c) => c.status === 'active') || null;
+
+  // Update progress
+  const progress = calculateProgress(concepts);
+  if (progress !== session.progress_percentage) {
+    await db.query(
+      'UPDATE learning_sessions SET progress_percentage = $1, updated_at = NOW() WHERE id = $2',
+      [progress, sessionId]
+    );
+    session.progress_percentage = progress;
+  }
+
+  return { session, concepts, currentConcept };
+}
+
+/**
+ * Marks a concept as completed and unlocks the next one.
+ * Called by the checkpoint controller when concept passes.
+ * Returns the updated state.
+ */
+async function completeConcept(client, concept, sessionId) {
+  const now = new Date().toISOString();
+
+  // Mark current concept as completed
+  await client.query(
+    `UPDATE learning_concepts
+     SET status = 'completed', completed_at = $1
+     WHERE id = $2`,
+    [now, concept.id]
+  );
+
+  // Find and unlock next concept
+  const nextResult = await client.query(
+    `SELECT * FROM learning_concepts
+     WHERE session_id = $1 AND order_index = $2`,
+    [sessionId, concept.order_index + 1]
+  );
+
+  let nextConcept = null;
+  let sessionCompleted = false;
+
+  if (nextResult.rows.length > 0) {
+    nextConcept = nextResult.rows[0];
+    await client.query(
+      "UPDATE learning_concepts SET status = 'active' WHERE id = $1",
+      [nextConcept.id]
+    );
+
+    // Update session's current_concept_id
+    await client.query(
+      'UPDATE learning_sessions SET current_concept_id = $1, updated_at = NOW() WHERE id = $2',
+      [nextConcept.id, sessionId]
+    );
+  } else {
+    // No more concepts — session is complete
+    await client.query(
+      "UPDATE learning_sessions SET status = 'completed', updated_at = NOW() WHERE id = $1",
+      [sessionId]
+    );
+    sessionCompleted = true;
+  }
+
+  // Recalculate progress
+  const allConceptsResult = await client.query(
+    "SELECT status FROM learning_concepts WHERE session_id = $1",
+    [sessionId]
+  );
+  const allConcepts = allConceptsResult.rows;
+  const progress = calculateProgress(allConcepts);
+  await client.query(
+    'UPDATE learning_sessions SET progress_percentage = $1 WHERE id = $2',
+    [progress, sessionId]
+  );
+
+  return { nextConcept, sessionCompleted, progress };
+}
+
+module.exports = {
+  createLearningSession,
+  getSessionWithConcepts,
+  completeConcept,
+  isPrebuiltTopic,
+  calculateProgress,
+};

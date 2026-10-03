@@ -28,6 +28,7 @@ const WORKSPACE = [
   { route: 'dashboard/inbox', label: 'Inbox', icon: <InboxIcon className={ic} />, badge: true },
   { route: 'dashboard/history', label: 'Session History', icon: <History className={ic} /> },
   { route: 'dashboard/insights', label: 'Insights', icon: <BarChart3 className={ic} /> },
+  { route: 'dashboard/schedules', label: 'Schedules', icon: <Calendar className={ic} /> },
 ];
 const FAVORITES = [
   { route: 'dashboard/inbox', label: 'Daily briefing', iconColor: 'text-[#EAB308]', icon: <MessageCircle className={ic} /> },

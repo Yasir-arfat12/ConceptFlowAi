@@ -68,6 +68,7 @@ export default function NewChat({ navigateTo, goBack }) {
                 <button
                   key={item.title}
                   onClick={() => setQuery(item.prompt)}
+                  aria-label={item.prompt}
                   className="flex items-center gap-3.5 p-3.5 rounded-2xl border border-white/5 bg-[#050505] hover:bg-[#0A0A0A] hover:border-white/10 transition-all duration-200 text-left group"
                 >
                   <div className="w-10 h-10 rounded-xl bg-[#0A0A0A] border border-white/5 flex items-center justify-center shrink-0 group-hover:bg-[#111111] transition-colors">

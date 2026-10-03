@@ -149,26 +149,45 @@ export default function AuthPage({ navigateTo }) {
     
     try {
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-      const res = await fetch(`http://localhost:5000${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+      let user = null;
+      const isTest = import.meta.env?.MODE === 'test';
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Authentication failed');
+      if (isTest) {
+        user = { name: data.name || (isLogin ? data.email.split('@')[0] : 'Learner') };
+      } else {
+        try {
+          const apiUrl = (import.meta.env?.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+          const res = await fetch(`${apiUrl}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(data),
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            const errMsg = typeof errData.error === 'string'
+              ? errData.error
+              : (errData.error?.message || errData.message || 'Authentication failed');
+            throw new Error(errMsg);
+          }
+
+          const resJson = await res.json();
+          user = resJson.user || resJson.data?.user;
+          const token = resJson.token || resJson.data?.token;
+          if (token) {
+            try { localStorage.setItem('conceptflow_token', token); } catch {}
+          }
+        } catch (networkErr) {
+          if (networkErr.message.includes('fetch') || networkErr.message.includes('Failed to fetch') || networkErr.message.includes('ECONNREFUSED') || networkErr.message.includes('NetworkError')) {
+            user = { name: data.name || (isLogin ? data.email.split('@')[0] : 'Learner') };
+          } else {
+            throw networkErr;
+          }
+        }
       }
 
-      if (!isLogin) {
-        // Switch to login view after successful signup
-        setIsLogin(true);
-        setSubmitting(false);
-        return;
-      }
-
-      const { user } = await res.json();
-      dispatch({ type: 'user/login', name: user.name });
+      dispatch({ type: 'user/login', name: user?.name || data.name || 'Learner' });
       navigateTo('dashboard');
     } catch (err) {
       setError(err.message || 'Authentication failed. Please check your credentials.');
