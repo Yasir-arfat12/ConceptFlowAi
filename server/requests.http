@@ -1,0 +1,107 @@
+### Register
+POST http://localhost:3000/api/auth/signup
+Content-Type: application/json
+
+{
+  "firstName": "Alex",
+  "lastName": "Smith",
+  "email": "alex@example.com",
+  "password": "Password123!"
+}
+
+###
+
+### Login
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "alex@example.com",
+  "password": "Password123!"
+}
+
+###
+
+### Get current user
+GET http://localhost:3000/api/auth/me
+Authorization: Bearer {{token}}
+
+###
+
+### Start learning session
+POST http://localhost:3000/api/learning/start
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "topic": "Teach me Binary Search from beginner to advanced"
+}
+
+###
+
+### List sessions
+GET http://localhost:3000/api/learning
+Authorization: Bearer {{token}}
+
+###
+
+### Get session
+GET http://localhost:3000/api/learning/{{sessionId}}
+Authorization: Bearer {{token}}
+
+###
+
+### Get current concept
+GET http://localhost:3000/api/learning/{{sessionId}}/current
+Authorization: Bearer {{token}}
+
+###
+
+### Answer checkpoint
+POST http://localhost:3000/api/checkpoints/{{checkpointId}}/answer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "answer": "Binary search requires sorted data because it works by comparing the target with the middle element and discarding the half that cannot contain the target. Without sorted order, we cannot know which half to discard."
+}
+
+###
+
+### Ask doubt
+POST http://localhost:3000/api/learning/{{sessionId}}/concept/{{conceptId}}/doubt
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "question": "Why does binary search need a sorted array?"
+}
+
+###
+
+### Get doubt history
+GET http://localhost:3000/api/learning/{{sessionId}}/concept/{{conceptId}}/doubt
+Authorization: Bearer {{token}}
+
+###
+
+### Dashboard
+GET http://localhost:3000/api/dashboard
+Authorization: Bearer {{token}}
+
+###
+
+### Progress
+GET http://localhost:3000/api/progress
+Authorization: Bearer {{token}}
+
+###
+
+### Suggested topics
+GET http://localhost:3000/api/topics
+Authorization: Bearer {{token}}
+
+###
+
+### Health check
+GET http://localhost:3000/api/health

@@ -1,53 +1,60 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const authRoutes = require('./routes/authRoutes');
-const learningRoutes = require('./routes/learningRoutes');
-const checkpointRoutes = require('./routes/checkpointRoutes');
-const progressRoutes = require('./routes/progressRoutes');
-const dashboardRoutes = require('./routes/dashboardRoutes');
-const db = require('./config/db');
+// src/app.js
+import express from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import { pinoHttp } from 'pino-http';
+import rateLimit from 'express-rate-limit';
+import env from './config/env.js';
+import logger from './config/logger.js';
+import authRoutes from './routes/auth.js';
+import learningRoutes from './routes/learning.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import pool from './db/pool.js';
 
 const app = express();
 
-// Security Middleware
+// Security
 app.use(helmet());
+app.use(cors({
+  origin: [env.CLIENT_ORIGIN, 'http://localhost:5173'],
+  credentials: true,
+}));
 
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: { error: 'Too many requests, please try again later.' }
-});
+// Logging
+app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/api/health' } }));
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use('/api/', apiLimiter);
+// Body parsing
+app.use(express.json({ limit: '10kb' }));
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/learning', learningRoutes);
-app.use('/api/checkpoints', checkpointRoutes);
-app.use('/api/progress', progressRoutes);
-app.use('/api/dashboard', dashboardRoutes);
+// General rate limit
+const generalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
+app.use(generalLimiter);
 
-// Health check endpoint
-app.get('/api/health', async (req, res) => {
+// Health check
+app.get('/api/health', async (_req, res) => {
+  let dbOk = false;
   try {
-    const result = await db.query('SELECT NOW()');
-    res.status(200).json({ 
-      status: 'ok', 
-      dbTime: result.rows[0].now, 
-      message: 'Backend and Database are healthy' 
-    });
-  } catch (error) {
-    console.error('Database connection error:', error);
-    res.status(500).json({ 
-      status: 'error', 
-      message: 'Database connection failed' 
-    });
-  }
+    await pool.query('SELECT 1');
+    dbOk = true;
+  } catch { /* ignore */ }
+  res.json({
+    status: dbOk ? 'ok' : 'degraded',
+    db: dbOk ? 'connected' : 'disconnected',
+    ai: env.AI_MODE,
+    timestamp: new Date().toISOString(),
+  });
 });
 
-module.exports = app;
+// API routes
+app.use('/api/auth', authRoutes);
+app.use('/api', learningRoutes);
+
+// 404
+app.use((_req, res) => {
+  res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Route not found' } });
+});
+
+// Error handler
+app.use(errorHandler);
+
+export default app;
