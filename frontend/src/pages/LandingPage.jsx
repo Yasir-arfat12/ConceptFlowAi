@@ -1,11 +1,12 @@
 import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
-import { Command } from 'lucide-react';
+import { Command, Brain, MessageSquare, Zap, Target, Layout, Sparkles } from 'lucide-react';
 const Wormhole = lazy(() => import('../Wormhole'));
-import LogoMarquee from '../LogoMarquee';
 
-// Only link to sections that exist on this page (the other anchors pointed nowhere).
+// Only link to sections that exist on this page
 const NAV_LINKS = [
   { href: '#about', label: 'About' },
+  { href: '#features', label: 'Features' },
+  { href: '#how-it-works', label: 'How It Works' },
 ];
 
 export default function LandingPage({ navigateTo }) {
@@ -124,7 +125,7 @@ export default function LandingPage({ navigateTo }) {
               </button>
             </div>
           </div>
-          
+
           <span aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-20 size-3 -translate-x-1/2 -translate-y-1/2 before:absolute before:left-1/2 before:top-0 before:h-full before:w-px before:-translate-x-1/2 before:bg-[linear-gradient(to_bottom,transparent,rgba(226,232,240,0.65)_50%,transparent)] after:absolute after:left-0 after:top-1/2 after:h-px after:w-full after:-translate-y-1/2 after:bg-[linear-gradient(to_right,transparent,rgba(226,232,240,0.65)_50%,transparent)]"></span>
           <span aria-hidden="true" className="pointer-events-none absolute right-0 top-0 z-20 size-3 translate-x-1/2 -translate-y-1/2 before:absolute before:left-1/2 before:top-0 before:h-full before:w-px before:-translate-x-1/2 before:bg-[linear-gradient(to_bottom,transparent,rgba(226,232,240,0.65)_50%,transparent)] after:absolute after:left-0 after:top-1/2 after:h-px after:w-full after:-translate-y-1/2 after:bg-[linear-gradient(to_right,transparent,rgba(226,232,240,0.65)_50%,transparent)]"></span>
           <span aria-hidden="true" className="pointer-events-none absolute bottom-0 left-0 z-20 size-3 -translate-x-1/2 translate-y-1/2 before:absolute before:left-1/2 before:top-0 before:h-full before:w-px before:-translate-x-1/2 before:bg-[linear-gradient(to_bottom,transparent,rgba(226,232,240,0.65)_50%,transparent)] after:absolute after:left-0 after:top-1/2 after:h-px after:w-full after:-translate-y-1/2 after:bg-[linear-gradient(to_right,transparent,rgba(226,232,240,0.65)_50%,transparent)]"></span>
@@ -169,20 +170,107 @@ export default function LandingPage({ navigateTo }) {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="inline-block"><path d="M11 17l5-5-5-5M18 17l5-5-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </span>
               </button>
-
-              <button type="button" onClick={() => navigateTo('auth')} className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 h-10 rounded-full border-white/30 bg-white px-8 text-black hover:bg-gray-100 hover:text-black shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                <span className="relative z-10">REQUEST A DEMO</span>
-              </button>
             </div>
           </div>
         </div>
 
-        <div className="absolute bottom-12 left-0 right-0">
-          <div className="mx-auto overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_25%,black_75%,transparent)] w-[calc(100%-2rem)] max-w-[1344px] py-0 lg:w-[calc(100%-3.5rem)]">
-            <LogoMarquee />
+        <div className="absolute bottom-12 left-0 right-0 z-10 hidden sm:block">
+          <div className="mx-auto flex justify-center items-center gap-6 md:gap-12 text-xs md:text-sm text-white/50 font-medium px-4">
+            <div className="flex items-center gap-2"><span className="text-white">10K+</span> Students</div>
+            <div className="w-1 h-1 rounded-full bg-white/20"></div>
+            <div className="flex items-center gap-2"><span className="text-white">50K+</span> Concepts Taught</div>
+            <div className="w-1 h-1 rounded-full bg-white/20"></div>
+            <div className="flex items-center gap-2"><span className="text-white">98%</span> Satisfaction</div>
           </div>
         </div>
       </section>
+
+      {/* Features Grid */}
+      <section id="features" className="relative z-10 max-w-[1344px] mx-auto px-6 py-32 bg-black border-t border-white/5 lg:w-[calc(100%-3.5rem)]">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight">A new way to learn</h2>
+          <p className="text-white/60">Built from the ground up for concept-level mastery.</p>
+        </div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[
+            { icon: <Brain className="w-6 h-6 text-indigo-400" />, title: "Concept-Level AI", desc: "Our AI breaks down complex subjects into atomic concepts, ensuring you build a solid foundation." },
+            { icon: <MessageSquare className="w-6 h-6 text-purple-400" />, title: "Socratic Method", desc: "Instead of just giving answers, ConceptFlow guides you to the solution through thoughtful questioning." },
+            { icon: <Zap className="w-6 h-6 text-blue-400" />, title: "Instant Validation", desc: "Test your knowledge immediately with dynamically generated quizzes based on your conversation." },
+            { icon: <Target className="w-6 h-6 text-emerald-400" />, title: "Personalized Paths", desc: "The curriculum adapts in real-time based on your strengths, weaknesses, and learning pace." },
+            { icon: <Layout className="w-6 h-6 text-rose-400" />, title: "Visual Learning", desc: "Automatically generated diagrams and mind maps help you visualize relationships between topics." },
+            { icon: <Sparkles className="w-6 h-6 text-amber-400" />, title: "Memory Retention", desc: "Spaced repetition algorithms ensure you never forget what you've learned." }
+          ].map((feature, i) => (
+            <div key={i} className="p-8 border border-white/5 bg-black/40 hover:bg-white/[0.02] backdrop-blur-sm transition-colors rounded-2xl group cursor-default">
+              <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-white/10 transition-all duration-300">
+                {feature.icon}
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-3">{feature.title}</h3>
+              <p className="text-white/50 text-sm leading-relaxed">{feature.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section id="how-it-works" className="relative z-10 max-w-[1344px] mx-auto px-6 py-32 bg-black border-t border-white/5 lg:w-[calc(100%-3.5rem)]">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight">How it works</h2>
+          <p className="text-white/60">From absolute beginner to mastery in three steps.</p>
+        </div>
+        <div className="max-w-3xl mx-auto space-y-12">
+          {[
+            { step: "01", title: "Define your goal", desc: "Tell ConceptFlow what you want to learn. Whether it's Quantum Physics or JavaScript basics, the AI creates a structured learning map." },
+            { step: "02", title: "Engage in dialogue", desc: "Learn through active conversation. The AI acts as your personal tutor, explaining concepts and answering questions in real-time." },
+            { step: "03", title: "Test your knowledge", desc: "Solidify your understanding with targeted challenges that ensure you've truly grasped the material before moving on." }
+          ].map((item, i) => (
+            <div key={i} className="flex gap-6 group">
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 rounded-full border border-white/10 bg-black flex items-center justify-center font-mono text-sm text-white/40 group-hover:text-white group-hover:border-white/30 transition-colors">
+                  {item.step}
+                </div>
+                {i !== 2 && <div className="w-[1px] h-20 bg-gradient-to-b from-white/10 to-transparent mt-4"></div>}
+              </div>
+              <div className="pt-2 pb-8">
+                <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
+                <p className="text-white/60 leading-relaxed">{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Bottom CTA */}
+      <section className="relative z-10 max-w-[1344px] mx-auto px-6 py-32 text-center border-t border-white/5 bg-black lg:w-[calc(100%-3.5rem)]">
+        <h2 className="text-3xl md:text-4xl font-bold mb-6 tracking-tight">Start learning at the concept level</h2>
+        <p className="text-white/60 mb-8 max-w-xl mx-auto">Join thousands of students and professionals who are learning faster and retaining more with ConceptFlow AI.</p>
+        <button
+          onClick={() => navigateTo('auth')}
+          style={{ "--duration": 3, "--light-width": "110px", "--light-color": "#fafafa", "--border-width": "1px", isolation: "isolate" }}
+          className="relative z-[3] overflow-hidden h-12 px-10 inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors group/star-button rounded-full border border-white/30 hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] cursor-pointer"
+        >
+          <div className="absolute inset-0 z-[-1] animate-star-beam" style={{ background: "linear-gradient(to right, transparent, var(--light-color), transparent)", width: "var(--light-width)", transformOrigin: "left", transform: "translateX(-100%)" }}></div>
+          <div className="absolute z-[-1]" style={{ inset: "var(--border-width)", backgroundColor: "#000000", borderRadius: "inherit" }}></div>
+          <div className="absolute inset-0 z-[-2]" style={{ backgroundColor: "#000000" }}></div>
+          <span className="relative z-10 inline-flex items-center gap-2 whitespace-nowrap text-white">
+            GET STARTED
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 17l5-5-5-5M18 17l5-5-5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </span>
+        </button>
+      </section>
+
+      {/* Footer */}
+      <footer className="relative z-10 border-t border-white/5 py-8 bg-black">
+        <div className="max-w-[1344px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 lg:w-[calc(100%-3.5rem)]">
+          <div className="flex items-center gap-2 text-white/40 text-sm">
+            <Command className="w-4 h-4" />
+            <span>© 2024 ConceptFlow AI. All rights reserved.</span>
+          </div>
+          <div className="flex gap-6 text-sm text-white/40">
+            <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
+            <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }

@@ -142,13 +142,14 @@ export default function AuthPage({ navigateTo }) {
       if (data.password !== data.confirm) return setError('Passwords do not match.');
       const age = Number(data.age);
       if (data.age && (age < 5 || age > 120)) return setError('Please enter a valid age.');
+      data.name = `${data.firstName} ${data.lastName}`.trim();
     }
     setError('');
     setSubmitting(true);
     
     try {
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
-      const res = await fetch(`http://localhost:3000${endpoint}`, {
+      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+      const res = await fetch(`http://localhost:5000${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
