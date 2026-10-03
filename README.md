@@ -1,21 +1,60 @@
-<<<<<<< HEAD
-# ConceptFlowAi
-AI-powered personalized learning platform that teaches concepts step-by-step with checkpoints, contextual AI doubt solving, quizzes, assignments, and progress tracking.
-=======
-# React + Vite
+# ConceptFlow AI
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+AI-powered personalized learning platform that teaches concepts step-by-step with checkpoints, contextual AI doubt-solving, and progress tracking.
 
-Currently, two official plugins are available:
+## Project Structure
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```
+ConceptFlowAi/
+├── frontend/          ← React + Vite frontend
+│   ├── src/           ← Source code
+│   ├── public/        ← Static assets
+│   ├── package.json
+│   └── vite.config.js
+│
+├── server/            ← Node.js + Express backend
+│   ├── src/           ← Source code
+│   ├── migrations/    ← SQL migration files
+│   ├── seeds/         ← Seed data
+│   ├── tests/         ← Contract tests
+│   ├── scripts/       ← Utility scripts
+│   └── package.json
+│
+└── docs/
+    ├── API_CONTRACT.md
+    └── DB_SCHEMA.md
+```
 
-## React Compiler
+## Quick Start
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Backend
+```bash
+cd server
+cp .env.example .env          # configure DATABASE_URL, JWT_SECRET, GEMINI_API_KEY
+npm install
+npm run db:migrate
+npm run db:seed
+npm run dev
+```
 
-## Expanding the Oxlint configuration
+### Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
->>>>>>> a8784b1 (Initial commit)
+Open http://localhost:5173
+
+## Tech Stack
+
+- **Frontend**: React 19, Vite, Tailwind CSS v4
+- **Backend**: Node.js 20+, Express 4, PostgreSQL
+- **Auth**: JWT + bcrypt
+- **AI**: Google Gemini (with offline fallback)
+
+## See Also
+
+- [Server Setup](./server/README.md)
+- [API Contract](./docs/API_CONTRACT.md)
+- [DB Schema](./docs/DB_SCHEMA.md)

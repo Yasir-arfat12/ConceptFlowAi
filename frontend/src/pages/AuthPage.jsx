@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Lock, Eye, EyeOff, MapPin, Calendar, Hash, Command } from 'lucide-react';
 
 import { useApp } from '../store/AppStore';
+import { api, setToken } from '../lib/api';
+
 
 // --- Starfall Canvas Background (Shooting Upwards) ---
 function StarfallCanvas() {
@@ -147,26 +149,15 @@ export default function AuthPage({ navigateTo }) {
     setSubmitting(true);
     
     try {
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
-      const res = await fetch(`http://localhost:3000${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Authentication failed');
-      }
-
       if (!isLogin) {
-        // Switch to login view after successful signup
+        await api.signup(data);
         setIsLogin(true);
         setSubmitting(false);
         return;
       }
 
-      const { user } = await res.json();
+      const { token, user } = await api.login({ email: data.email, password: data.password });
+      setToken(token);
       dispatch({ type: 'user/login', name: user.name });
       navigateTo('dashboard');
     } catch (err) {
