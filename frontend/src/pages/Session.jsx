@@ -14,6 +14,7 @@ function Inline({ text }) {
   });
 }
 
+<<<<<<< HEAD
 /**
  * Learning session driven fully by PostgreSQL and Express backend APIs.
  * No localStorage persistence of learning data.
@@ -23,6 +24,12 @@ export default function Session({ params, goBack }) {
   const sessionIdParam = params?.get('sessionId');
   const topicParam = params?.get('topic');
 
+=======
+/** Learning session driven by the requested topic. Progress persists, so learners resume where they stopped. */
+export default function Session({ params, goBack, navigateTo }) {
+  const topic = params?.get('topic') || 'Binary Search';
+  const cur = useMemo(() => getCurriculum(topic), [topic]);
+>>>>>>> 3b1961434419264a02cc7ee59af00f1510921fc9
   const { state, dispatch } = useApp();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,6 +47,7 @@ export default function Session({ params, goBack }) {
   useEffect(() => {
     let active = true;
 
+<<<<<<< HEAD
     async function initSession() {
       try {
         setLoading(true);
@@ -184,6 +192,16 @@ export default function Session({ params, goBack }) {
       });
     } finally {
       setSubmitting(false);
+=======
+  const submit = () => setResult(gradeAnswer(answer, concept.checkpoint));
+  const advance = () => {
+    dispatch({ type: 'progress/set', key: cur.key, title: cur.title, total, done: step + 1 });
+    if (step + 1 < total) { 
+      setStep(step + 1); setAnswer(''); setResult(null); 
+    } else {
+      if (navigateTo) navigateTo('dashboard/tutor');
+      else if (goBack) goBack();
+>>>>>>> 3b1961434419264a02cc7ee59af00f1510921fc9
     }
   };
 
