@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { CheckCircle2, Clock, Circle, Filter, Search, Plus, X, Loader2, Sparkles, BrainCircuit, ArrowLeft } from 'lucide-react';
 
 const INITIAL_ASSIGNMENTS = [
-  { id: 1, title: "Implement Backpropagation", course: "Neural Networks", status: "Pending", due: "Today, 11:59 PM" },
-  { id: 2, title: "Read Chapter 4: Transformers", course: "NLP", status: "In Progress", due: "Tomorrow" },
-  { id: 3, title: "Probability Basics Quiz", course: "Mathematics", status: "Completed", due: "Yesterday" }
+  { id: 1, title: "Implement Backpropagation", course: "Neural Networks", status: "Pending", due: "Today, 11:59 PM", description: "Write a Python script from scratch that implements the backpropagation algorithm for a simple 2-layer neural network. Prove it works by training it on the XOR problem." },
+  { id: 2, title: "Read Chapter 4: Transformers", course: "NLP", status: "In Progress", due: "Tomorrow", description: "Read Chapter 4 and write a 2-paragraph summary of the Self-Attention mechanism." },
+  { id: 3, title: "Probability Basics Quiz", course: "Mathematics", status: "Completed", due: "Yesterday", description: "Solve the probability quiz from the textbook.", submission: "Completed via external quiz portal." }
 ];
 
 const SUBJECTS = {
@@ -16,6 +16,8 @@ const SUBJECTS = {
 export default function Assignments({ goBack }) {
   const [assignments, setAssignments] = useState(INITIAL_ASSIGNMENTS);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [activeAssignment, setActiveAssignment] = useState(null);
+  const [submissionText, setSubmissionText] = useState("");
   
   // Form State
   const [selectedSubject, setSelectedSubject] = useState("");
@@ -29,8 +31,11 @@ export default function Assignments({ goBack }) {
     (statusFilter === "All" || a.status === statusFilter) &&
     `${a.title} ${a.course}`.toLowerCase().includes(search.trim().toLowerCase())
   );
-  const cycleStatus = (id) =>
-    setAssignments((list) => list.map((a) => a.id === id ? { ...a, status: STATUSES[(STATUSES.indexOf(a.status) + 1) % STATUSES.length] } : a));
+  
+  const openAssignment = (item) => {
+    setActiveAssignment(item);
+    setSubmissionText(item.submission || "");
+  };
 
   const handleGenerate = () => {
     if (!selectedSubject || !selectedTopic) return;
@@ -44,7 +49,8 @@ export default function Assignments({ goBack }) {
         title: `Assignment: ${selectedTopic}`,
         course: selectedSubject,
         status: "Pending",
-        due: "In 3 days"
+        due: "In 3 days",
+        description: `Please complete the exercises related to ${selectedTopic} to demonstrate mastery.`
       };
       
       setAssignments([newAssignment, ...assignments]);
@@ -100,7 +106,7 @@ export default function Assignments({ goBack }) {
             <div className="flex flex-col">
               {visible.length === 0 && <p className="p-8 text-center text-sm text-white/40">No tasks match.</p>}
               {visible.map(item => (
-                <div key={item.id} role="button" tabIndex={0} onClick={() => cycleStatus(item.id)} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), cycleStatus(item.id))} title="Click to change status" className="grid grid-cols-12 gap-4 p-4 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors cursor-pointer group min-w-[640px]">
+                <div key={item.id} role="button" tabIndex={0} onClick={() => openAssignment(item)} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), openAssignment(item))} title="Click to open assignment details" className="grid grid-cols-12 gap-4 p-4 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors cursor-pointer group min-w-[640px]">
                   <div className="col-span-5 flex items-center gap-3">
                     {item.status === 'Completed' ? <CheckCircle2 className="w-5 h-5 text-[#00E676]" /> : 
                      item.status === 'In Progress' ? <Clock className="w-5 h-5 text-[#FFC107]" /> : 
@@ -205,6 +211,80 @@ export default function Assignments({ goBack }) {
                 ) : (
                   <>Generate Custom Assignment</>
                 )}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Solver Drawer */}
+      {activeAssignment && (
+        <>
+          <div 
+            className="absolute inset-0 bg-black/40 z-40 backdrop-blur-[2px] transition-all"
+            onClick={() => setActiveAssignment(null)}
+          ></div>
+          <div className="absolute top-0 right-0 bottom-0 w-full sm:w-[600px] bg-[#0B0E11] border-l border-white/5 flex flex-col z-50 animate-in slide-in-from-right duration-300 shadow-2xl">
+            <div className="h-[70px] border-b border-white/5 flex items-center justify-between px-8 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[#00E676]/10 flex items-center justify-center text-[#00E676]">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <h2 className="text-[15px] font-semibold text-white tracking-tight">Assignment Details</h2>
+              </div>
+              <button 
+                onClick={() => setActiveAssignment(null)}
+                className="text-white/40 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-8 flex flex-col gap-6 flex-1 overflow-y-auto">
+              <div>
+                <div className="text-[13px] text-[#22D3EE] font-medium mb-1">{activeAssignment.course}</div>
+                <h3 className="text-2xl font-bold text-white mb-3">{activeAssignment.title}</h3>
+                <div className="flex items-center gap-4 text-[12px] text-white/50">
+                  <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Due: {activeAssignment.due}</span>
+                  <span className={`px-2 py-0.5 rounded-full font-medium tracking-wide ${
+                      activeAssignment.status === 'Completed' ? 'bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/20' :
+                      activeAssignment.status === 'In Progress' ? 'bg-[#FFC107]/10 text-[#FFC107] border border-[#FFC107]/20' :
+                      'bg-white/5 text-white/60 border border-white/10'
+                    }`}>Status: {activeAssignment.status}</span>
+                </div>
+              </div>
+
+              <div className="w-full h-px bg-white/5 my-2"></div>
+
+              <div>
+                <h4 className="text-[14px] font-medium text-white/80 mb-3">Instructions</h4>
+                <div className="text-[14px] text-white/60 leading-relaxed p-5 bg-[#12161B] rounded-lg border border-white/5">
+                  {activeAssignment.description || "No specific instructions provided. Complete the task as per your course syllabus."}
+                </div>
+              </div>
+
+              <div className="flex-1 flex flex-col mt-2">
+                <h4 className="text-[14px] font-medium text-white/80 mb-3">Your Proof / Solution</h4>
+                <textarea 
+                  value={submissionText}
+                  onChange={(e) => setSubmissionText(e.target.value)}
+                  disabled={activeAssignment.status === 'Completed'}
+                  placeholder="Paste your code, links, or write your answer here to prove completion..."
+                  className="w-full flex-1 min-h-[250px] bg-[#12161B] border border-white/10 rounded-lg p-5 text-[14px] text-white focus:outline-none focus:border-[#00E676]/50 transition-colors resize-none disabled:opacity-60 disabled:cursor-not-allowed"
+                ></textarea>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-white/5 bg-[#0B0E11]">
+              <button 
+                onClick={() => {
+                  setAssignments(list => list.map(a => a.id === activeAssignment.id ? { ...a, status: 'Completed', submission: submissionText } : a));
+                  setActiveAssignment(null);
+                }}
+                disabled={!submissionText.trim() || activeAssignment.status === 'Completed'}
+                className="w-full bg-[#00E676] text-black font-semibold rounded-lg py-3.5 text-[14px] hover:bg-[#00E676]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {activeAssignment.status === 'Completed' ? 'Already Completed' : 'Submit Assignment'}
               </button>
             </div>
           </div>

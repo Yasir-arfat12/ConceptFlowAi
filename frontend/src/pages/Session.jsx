@@ -14,7 +14,7 @@ function Inline({ text }) {
 }
 
 /** Learning session driven by the requested topic. Progress persists, so learners resume where they stopped. */
-export default function Session({ params, goBack }) {
+export default function Session({ params, goBack, navigateTo }) {
   const topic = params?.get('topic') || 'Binary Search';
   const cur = useMemo(() => getCurriculum(topic), [topic]);
   const { state, dispatch } = useApp();
@@ -33,7 +33,12 @@ export default function Session({ params, goBack }) {
   const submit = () => setResult(gradeAnswer(answer, concept.checkpoint));
   const advance = () => {
     dispatch({ type: 'progress/set', key: cur.key, title: cur.title, total, done: step + 1 });
-    if (step + 1 < total) { setStep(step + 1); setAnswer(''); setResult(null); }
+    if (step + 1 < total) { 
+      setStep(step + 1); setAnswer(''); setResult(null); 
+    } else {
+      if (navigateTo) navigateTo('dashboard/tutor');
+      else if (goBack) goBack();
+    }
   };
   const open = (i) => { if (statusOf(i) !== 'locked') { setStep(i); setAnswer(''); setResult(null); setQuickDoubt(''); } };
   const lastDone = result?.passed && step + 1 >= total;
