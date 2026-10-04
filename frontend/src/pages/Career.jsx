@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { TrendingUp, Award, Target, Star, Briefcase, ChevronDown, CheckCircle2, Circle, Lock, Clock, Play, ArrowLeft } from 'lucide-react';
 import { useApp } from '../store/AppStore';
 import { CAREER_SKILLS, CERTIFICATIONS, MILESTONES, JOBS, TRACK, careerMetrics, jobMatch, subLevel } from '../lib/career';
@@ -8,6 +8,8 @@ import Drawer from '../components/Drawer';
  * Career: every number is derived from skill levels (which quiz results raise),
  * so Track Progress, Verified Skills and Readiness always agree. Adds skill
  * drill-down, a "next best step" gap card, roadmap, certifications and job matches.
+ *
+ * NOTE: No career data or progress is stored in localStorage.
  */
 export default function Career({ navigateTo, goBack }) {
   const { state } = useApp();
@@ -15,6 +17,29 @@ export default function Career({ navigateTo, goBack }) {
   const [open, setOpen] = useState(null);
   const [jobsOpen, setJobsOpen] = useState(false);
   const [saved, setSaved] = useState([]);
+
+  // Ensure any legacy localStorage or sessionStorage career keys are cleared
+  useEffect(() => {
+    try {
+      const keys = [
+        'career',
+        'career_data',
+        'career_progress',
+        'career_skills',
+        'saved_jobs',
+        'saved_roles',
+        'career_metrics',
+        'career_track',
+        'conceptflow_career',
+        'conceptflow:v2',
+      ];
+      for (const k of keys) {
+        localStorage.removeItem(k);
+        sessionStorage.removeItem(k);
+      }
+    } catch {}
+  }, []);
+
   const stats = [
     { icon: Target, color: 'text-[#06B6D4]', label: 'Track Progress', value: `${m.trackProgress}%` },
     { icon: Award, color: 'text-[#10B981]', label: 'Certifications', value: m.certs },
@@ -122,13 +147,29 @@ export default function Career({ navigateTo, goBack }) {
             <div className="border border-white/10 rounded-xl bg-[#09090b] p-6">
               <h3 className="text-[15px] font-semibold text-white mb-4">Certifications</h3>
               <ul className="flex flex-col gap-3">
-                {CERTIFICATIONS.map((c) => (
-                  <li key={c.name} className="flex items-center gap-3 text-[13px]">
-                    {c.status === 'completed' ? <CheckCircle2 className="w-4 h-4 text-[#10B981]" /> : c.status === 'in-progress' ? <Clock className="w-4 h-4 text-[#EAB308]" /> : <Lock className="w-4 h-4 text-white/20" />}
-                    <span className={c.status === 'locked' ? 'text-white/30' : 'text-white/80'}>{c.name}</span>
-                    <span className="ml-auto text-[11px] text-white/40 capitalize">{c.status.replace('-', ' ')}</span>
-                  </li>
-                ))}
+                {CERTIFICATIONS.map((c) => {
+                  const status =
+                    c.skill && m.levels[c.skill] !== undefined
+                      ? m.levels[c.skill] >= 80
+                        ? 'completed'
+                        : m.levels[c.skill] >= 50
+                        ? 'in-progress'
+                        : 'locked'
+                      : c.status;
+                  return (
+                    <li key={c.name} className="flex items-center gap-3 text-[13px]">
+                      {status === 'completed' ? (
+                        <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+                      ) : status === 'in-progress' ? (
+                        <Clock className="w-4 h-4 text-[#EAB308]" />
+                      ) : (
+                        <Lock className="w-4 h-4 text-white/20" />
+                      )}
+                      <span className={status === 'locked' ? 'text-white/30' : 'text-white/80'}>{c.name}</span>
+                      <span className="ml-auto text-[11px] text-white/40 capitalize">{status.replace('-', ' ')}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           </div>

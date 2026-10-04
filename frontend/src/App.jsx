@@ -13,6 +13,7 @@ const PAGES = {
   'dashboard/session': lazy(() => import('./pages/Session')),
   'dashboard/inbox': lazy(() => import('./pages/Inbox')),
   'dashboard/insights': lazy(() => import('./pages/Insights')),
+  'dashboard/mastery': lazy(() => import('./pages/Insights')),
   'dashboard/history': lazy(() => import('./pages/SessionHistory')),
   'dashboard/tutor': lazy(() => import('./pages/Tutor')),
   'dashboard/assignments': lazy(() => import('./pages/Assignments')),

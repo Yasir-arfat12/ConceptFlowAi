@@ -11,6 +11,8 @@ const {
   createAssignment,
   getAssignment,
   submitAssignment,
+  getUserAssignments,
+  getUserQuizzes,
 } = require('../controllers/learningController');
 const { getCheckpoints } = require('../controllers/checkpointController');
 const { askDoubt, getDoubts, handleTutorQuestion } = require('../controllers/doubtController');
@@ -21,9 +23,13 @@ const router = express.Router();
 // Direct tutor client integration (optional auth)
 router.post('/tutor', handleTutorQuestion);
 
-// Session management
+// Session management & User-level aggregates (MUST precede /:sessionId)
 router.post('/start',                           authenticate, startLearning);
 router.get('/',                                 authenticate, getUserSessions);
+router.get('/sessions',                         authenticate, getUserSessions);
+router.get('/assignments',                      authenticate, getUserAssignments);
+router.get('/quizzes',                          authenticate, getUserQuizzes);
+
 router.get('/:sessionId',                       authenticate, getSession);
 router.get('/:sessionId/current',               authenticate, getCurrentConcept);
 

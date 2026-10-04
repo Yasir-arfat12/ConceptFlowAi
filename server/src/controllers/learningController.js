@@ -27,6 +27,10 @@ const {
   generateAssignment,
   isConfigured: aiAvailable,
 } = require('../services/aiService');
+const {
+  recalculateSessionMastery,
+  getWeakConcepts,
+} = require('../services/masteryService');
 
 // ─── Session Management ──────────────────────────────────────────────────────
 
@@ -152,11 +156,15 @@ const getSession = async (req, res) => {
         concepts: result.concepts.map((c) => ({
           id: c.id,
           title: c.title,
+          content: c.content,
+          examples: c.examples,
+          keyTakeaways: c.key_takeaways,
           status: c.status,
           orderIndex: c.order_index,
           score: c.score,
           masteryLevel: c.mastery_level,
           completedAt: c.completed_at,
+          checkpoints: c.checkpoints || [],
         })),
         currentConcept: result.currentConcept
           ? {
@@ -324,11 +332,13 @@ const getConcept = async (req, res) => {
 /**
  * POST /api/learning/:sessionId/quiz
  * Generates (or retrieves existing) quiz for the session.
+ * Maps questions to session concepts and incorporates weak areas.
  */
 const createQuiz = async (req, res) => {
   try {
     const { sessionId } = req.params;
     const userId = req.user.id;
+    const regenerate = req.query.regenerate === 'true';
 
     const sessionResult = await db.query(
       'SELECT * FROM learning_sessions WHERE id = $1 AND user_id = $2',
@@ -342,21 +352,40 @@ const createQuiz = async (req, res) => {
     }
     const session = sessionResult.rows[0];
 
-    // Return existing quiz if already generated
-    const existingQuiz = await db.query('SELECT * FROM quizzes WHERE session_id = $1', [sessionId]);
-    if (existingQuiz.rows.length > 0) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          quiz: { id: existingQuiz.rows[0].id, questions: existingQuiz.rows[0].questions },
-          questions: existingQuiz.rows[0].questions,
-        },
-      });
+    // Fetch all concepts for this session
+    const conceptsResult = await db.query(
+      'SELECT id, title, order_index, status, score, mastery_level FROM learning_concepts WHERE session_id = $1 ORDER BY order_index ASC',
+      [sessionId]
+    );
+    const concepts = conceptsResult.rows;
+
+    // Return existing quiz unless regenerate is requested
+    if (!regenerate) {
+      const existingQuiz = await db.query('SELECT * FROM quizzes WHERE session_id = $1', [sessionId]);
+      if (existingQuiz.rows.length > 0) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            quiz: { id: existingQuiz.rows[0].id, questions: existingQuiz.rows[0].questions },
+            questions: existingQuiz.rows[0].questions,
+          },
+        });
+      }
     }
+
+    const weakConcepts = await getWeakConcepts(sessionId, userId);
 
     let questions;
     if (isPrebuiltTopic(session.topic)) {
-      questions = binarySearchData.quiz.questions;
+      // Map concept IDs to prebuilt questions based on conceptIndex
+      questions = binarySearchData.quiz.questions.map((q) => {
+        const matchingConcept = concepts.find((c) => c.order_index === q.conceptIndex) || concepts[0];
+        return {
+          ...q,
+          conceptId: matchingConcept?.id || q.conceptIndex,
+          conceptTitle: matchingConcept?.title || q.conceptTitle,
+        };
+      });
     } else {
       if (!aiAvailable) {
         return res.status(503).json({
@@ -364,23 +393,30 @@ const createQuiz = async (req, res) => {
           error: { code: 'AI_NOT_CONFIGURED', message: 'AI service not available.' },
         });
       }
-      const conceptsResult = await db.query(
-        'SELECT title, content FROM learning_concepts WHERE session_id = $1 ORDER BY order_index',
-        [sessionId]
-      );
-      const summary = conceptsResult.rows.map((c) => `${c.title}: ${c.content}`).join('\n\n');
-      questions = await generateQuiz(session.topic, summary);
+      questions = await generateQuiz(session.topic, concepts, weakConcepts);
     }
 
-    const quizResult = await db.query(
-      'INSERT INTO quizzes (session_id, questions) VALUES ($1, $2) RETURNING *',
-      [sessionId, JSON.stringify(questions)]
-    );
+    // Upsert quiz
+    let quizId;
+    const existingCheck = await db.query('SELECT id FROM quizzes WHERE session_id = $1', [sessionId]);
+    if (existingCheck.rows.length > 0) {
+      const updateResult = await db.query(
+        'UPDATE quizzes SET questions = $1, result = NULL, score = NULL, completed_at = NULL WHERE session_id = $2 RETURNING id',
+        [JSON.stringify(questions), sessionId]
+      );
+      quizId = updateResult.rows[0].id;
+    } else {
+      const insertResult = await db.query(
+        'INSERT INTO quizzes (session_id, questions) VALUES ($1, $2) RETURNING id',
+        [sessionId, JSON.stringify(questions)]
+      );
+      quizId = insertResult.rows[0].id;
+    }
 
     return res.status(201).json({
       success: true,
       data: {
-        quiz: { id: quizResult.rows[0].id, questions },
+        quiz: { id: quizId, questions },
         questions,
       },
     });
@@ -443,16 +479,16 @@ const getQuiz = async (req, res) => {
 
 /**
  * POST /api/learning/:sessionId/quiz/submit
- * Grades a quiz submission.
+ * Evaluates quiz submission, stores attempts & answers in PostgreSQL, updates concept mastery.
  */
 const submitQuiz = async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { answers } = req.body; // [{ questionIndex, selectedOptionIndex }]
+    const { answers } = req.body; // [{ questionIndex, questionId, selectedOptionIndex, selectedAnswer }]
     const userId = req.user.id;
 
     const sessionResult = await db.query(
-      'SELECT id FROM learning_sessions WHERE id = $1 AND user_id = $2',
+      'SELECT * FROM learning_sessions WHERE id = $1 AND user_id = $2',
       [sessionId, userId]
     );
     if (sessionResult.rows.length === 0) {
@@ -461,6 +497,7 @@ const submitQuiz = async (req, res) => {
         error: { code: 'NOT_FOUND', message: 'Session not found.' },
       });
     }
+    const session = sessionResult.rows[0];
 
     const quizResult = await db.query('SELECT * FROM quizzes WHERE session_id = $1', [sessionId]);
     if (quizResult.rows.length === 0) {
@@ -469,8 +506,9 @@ const submitQuiz = async (req, res) => {
         error: { code: 'NOT_FOUND', message: 'Quiz not found.' },
       });
     }
+    const quiz = quizResult.rows[0];
+    const questions = quiz.questions;
 
-    const questions = quizResult.rows[0].questions;
     if (!Array.isArray(answers)) {
       return res.status(422).json({
         success: false,
@@ -478,38 +516,166 @@ const submitQuiz = async (req, res) => {
       });
     }
 
-    // Grade each answer
+    // Load concepts for this session to associate answers
+    const conceptsResult = await db.query(
+      'SELECT id, title, order_index FROM learning_concepts WHERE session_id = $1',
+      [sessionId]
+    );
+    const concepts = conceptsResult.rows;
+
+    // Grade each question
     let correct = 0;
     const gradedAnswers = questions.map((q, i) => {
-      const submitted = answers.find((a) => a.questionIndex === i);
-      const isCorrect = submitted !== undefined && submitted.selectedOptionIndex === q.correctOptionIndex;
+      const submitted = answers.find(
+        (a) => a.questionIndex === i || (a.questionId && a.questionId === q.id)
+      );
+
+      // Determine conceptId
+      let conceptId = q.conceptId;
+      if (!conceptId && q.conceptIndex) {
+        const matched = concepts.find((c) => c.order_index === q.conceptIndex);
+        conceptId = matched?.id;
+      }
+
+      // Check correctness
+      let isCorrect = false;
+      const correctIdx = q.correctOptionIndex ?? (q.correctAnswer === 'B' ? 1 : q.correctAnswer === 'C' ? 2 : q.correctAnswer === 'D' ? 3 : 0);
+      const correctVal = q.correctAnswer || String.fromCharCode(65 + correctIdx);
+
+      if (submitted) {
+        if (submitted.selectedOptionIndex !== undefined && submitted.selectedOptionIndex !== null) {
+          isCorrect = submitted.selectedOptionIndex === correctIdx;
+        } else if (submitted.selectedAnswer !== undefined && submitted.selectedAnswer !== null) {
+          isCorrect =
+            String(submitted.selectedAnswer).trim().toUpperCase() === String(correctVal).trim().toUpperCase();
+        } else if (submitted.picked !== undefined && submitted.picked !== null) {
+          isCorrect = submitted.picked === correctIdx;
+        }
+      }
+
       if (isCorrect) correct++;
+
+      const selectedAnswerText =
+        submitted?.selectedAnswer ||
+        (submitted?.selectedOptionIndex !== undefined && q.options
+          ? typeof q.options[submitted.selectedOptionIndex] === 'object'
+            ? q.options[submitted.selectedOptionIndex]?.label
+            : q.options[submitted.selectedOptionIndex]
+          : null);
+
       return {
         questionIndex: i,
+        questionId: q.id || `q_${i + 1}`,
+        conceptId: conceptId || null,
+        conceptTitle: q.conceptTitle || `Concept ${conceptId || i + 1}`,
         question: q.question,
-        selectedOptionIndex: submitted?.selectedOptionIndex ?? null,
-        correctOptionIndex: q.correctOptionIndex,
+        selectedOptionIndex: submitted?.selectedOptionIndex ?? submitted?.picked ?? null,
+        selectedAnswer: selectedAnswerText || submitted?.selectedAnswer || null,
+        correctOptionIndex: correctIdx,
+        correctAnswer: correctVal,
         isCorrect,
         explanation: q.explanation,
       };
     });
 
-    const score = Math.round((correct / questions.length) * 100);
+    const totalQuestions = questions.length;
+    const percentage = totalQuestions > 0 ? Math.round((correct / totalQuestions) * 100) : 0;
     const now = new Date().toISOString();
 
+    // 1. Insert into quiz_attempts
+    const attemptInsert = await db.query(
+      `INSERT INTO quiz_attempts 
+        (user_id, session_id, quiz_id, score, total_questions, correct_answers, percentage, completed_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [userId, sessionId, quiz.id, percentage, totalQuestions, correct, percentage, now]
+    );
+    const attemptId = attemptInsert.rows[0].id;
+
+    // 2. Insert individual question answers into quiz_attempt_answers
+    for (const ga of gradedAnswers) {
+      await db.query(
+        `INSERT INTO quiz_attempt_answers
+          (attempt_id, question_id, concept_id, selected_answer, correct_answer, is_correct)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          attemptId,
+          String(ga.questionId),
+          ga.conceptId || null,
+          String(ga.selectedAnswer || ''),
+          String(ga.correctAnswer || ''),
+          ga.isCorrect,
+        ]
+      );
+    }
+
+    // 3. Update quizzes table
     await db.query(
       'UPDATE quizzes SET result = $1, score = $2, completed_at = $3 WHERE session_id = $4',
-      [JSON.stringify(gradedAnswers), score, now, sessionId]
+      [JSON.stringify(gradedAnswers), percentage, now, sessionId]
     );
+
+    // 4. Recalculate session concept mastery and update PostgreSQL records
+    await recalculateSessionMastery(sessionId, userId);
+
+    // 5. Aggregate concept performance breakdown for the results screen
+    const conceptBreakdownMap = {};
+    gradedAnswers.forEach((ga) => {
+      const key = ga.conceptTitle || `Concept ${ga.conceptId || 'General'}`;
+      if (!conceptBreakdownMap[key]) {
+        conceptBreakdownMap[key] = {
+          title: key,
+          conceptId: ga.conceptId,
+          correct: 0,
+          total: 0,
+        };
+      }
+      conceptBreakdownMap[key].total++;
+      if (ga.isCorrect) conceptBreakdownMap[key].correct++;
+    });
+
+    const conceptBreakdown = Object.values(conceptBreakdownMap).map((cb) => {
+      const pct = Math.round((cb.correct / cb.total) * 100);
+      return {
+        title: cb.title,
+        conceptId: cb.conceptId,
+        score: pct,
+        status: pct >= 80 ? 'Mastered' : pct >= 60 ? 'Developing' : 'Needs Practice',
+      };
+    });
+
+    // 6. Identify weak concepts from this quiz
+    const weakConceptsList = conceptBreakdown.filter((cb) => cb.score < 75);
+    const masteryLabel =
+      percentage >= 80 ? 'Strong Understanding' : percentage >= 60 ? 'Good Understanding' : 'Needs Practice';
+
+    const feedback =
+      percentage >= 80
+        ? 'Outstanding mastery of this topic! Keep up the great work.'
+        : percentage >= 60
+        ? 'Good progress. Focus on your weaker concepts in the personalized assignment.'
+        : 'Needs more practice. Review the concept explanations and complete the targeted assignment.';
 
     return res.status(200).json({
       success: true,
       data: {
-        score,
+        attemptId,
+        score: percentage,
+        percentage,
         correct,
-        total: questions.length,
+        total: totalQuestions,
+        masteryLabel,
+        feedback,
         answers: gradedAnswers,
-        feedback: score >= 80 ? 'Excellent work!' : score >= 60 ? 'Good effort. Review the misses.' : 'Keep practising!',
+        conceptBreakdown,
+        weakConcepts: weakConceptsList,
+        nextStep: {
+          type: 'assignment',
+          message:
+            weakConceptsList.length > 0
+              ? `Strengthen your understanding of ${weakConceptsList[0].title} with your personalized assignment.`
+              : 'Consolidate your learning by completing the practice assignment.',
+          sessionId,
+        },
       },
     });
   } catch (err) {
@@ -525,12 +691,13 @@ const submitQuiz = async (req, res) => {
 
 /**
  * POST /api/learning/:sessionId/assignment
- * Generates (or retrieves existing) assignment for the session.
+ * Generates (or retrieves existing) personalized assignment tailored to weak concepts.
  */
 const createAssignment = async (req, res) => {
   try {
     const { sessionId } = req.params;
     const userId = req.user.id;
+    const regenerate = req.query.regenerate === 'true';
 
     const sessionResult = await db.query(
       'SELECT * FROM learning_sessions WHERE id = $1 AND user_id = $2',
@@ -544,17 +711,50 @@ const createAssignment = async (req, res) => {
     }
     const session = sessionResult.rows[0];
 
-    const existing = await db.query('SELECT * FROM assignments WHERE session_id = $1', [sessionId]);
-    if (existing.rows.length > 0) {
-      return res.status(200).json({
-        success: true,
-        data: { assignment: existing.rows[0].assignment_data },
-      });
+    // Return existing assignment unless regenerate is requested
+    if (!regenerate) {
+      const existing = await db.query('SELECT * FROM assignments WHERE session_id = $1', [sessionId]);
+      if (existing.rows.length > 0) {
+        return res.status(200).json({
+          success: true,
+          data: { assignment: existing.rows[0].assignment_data },
+        });
+      }
     }
+
+    const conceptsResult = await db.query(
+      'SELECT id, title, content, score, status, mastery_level FROM learning_concepts WHERE session_id = $1 ORDER BY order_index',
+      [sessionId]
+    );
+    const concepts = conceptsResult.rows;
+    const weakConcepts = await getWeakConcepts(sessionId, userId);
 
     let assignmentData;
     if (isPrebuiltTopic(session.topic)) {
-      assignmentData = binarySearchData.assignment;
+      // Dynamic personalization based on weak concepts in Binary Search
+      const hasBoundaryWeakness = weakConcepts.some((w) =>
+        (w.title || '').toLowerCase().includes('boundary') || (w.title || '').toLowerCase().includes('edge')
+      );
+
+      if (hasBoundaryWeakness) {
+        assignmentData = {
+          title: 'Binary Search: Boundary Conditions & Edge Cases Practice',
+          description:
+            'Based on your checkpoint and quiz results, this personalized assignment strengthens boundary conditions, duplicate elements, and empty array handling.',
+          difficulty: 'intermediate',
+          targetConcepts: ['Boundary Conditions and Edge Cases', 'Implementing Binary Search'],
+          tasks: [
+            'Task 1: Explain the roles of left, right, and mid pointers when the target element is missing from the array.',
+            'Task 2: Implement `find_first_occurrence(nums, target)` to return the FIRST occurrence index in an array with duplicate elements (e.g. [1, 2, 2, 2, 3], target=2 -> index 1).',
+            'Task 3: Implement `find_last_occurrence(nums, target)` to return the LAST occurrence index (e.g. [1, 2, 2, 2, 3], target=2 -> index 3).',
+            'Task 4: Explain what happens when binary search receives an empty array `[]` or a single-element array `[5]`, and how the `left <= right` condition handles it safely.',
+          ],
+          expectedOutput:
+            'Working Python/JavaScript implementations of first & last occurrence search with edge case explanation.',
+        };
+      } else {
+        assignmentData = binarySearchData.assignment;
+      }
     } else {
       if (!aiAvailable) {
         return res.status(503).json({
@@ -562,18 +762,22 @@ const createAssignment = async (req, res) => {
           error: { code: 'AI_NOT_CONFIGURED', message: 'AI service not available.' },
         });
       }
-      const conceptsResult = await db.query(
-        'SELECT title, content FROM learning_concepts WHERE session_id = $1 ORDER BY order_index',
-        [sessionId]
-      );
-      const summary = conceptsResult.rows.map((c) => `${c.title}: ${c.content}`).join('\n\n');
-      assignmentData = await generateAssignment(session.topic, summary);
+      assignmentData = await generateAssignment(session.topic, concepts, weakConcepts);
     }
 
-    await db.query(
-      'INSERT INTO assignments (session_id, assignment_data) VALUES ($1, $2)',
-      [sessionId, JSON.stringify(assignmentData)]
-    );
+    // Upsert assignment
+    const existingCheck = await db.query('SELECT id FROM assignments WHERE session_id = $1', [sessionId]);
+    if (existingCheck.rows.length > 0) {
+      await db.query(
+        'UPDATE assignments SET assignment_data = $1, result = NULL, score = NULL, completed_at = NULL WHERE session_id = $2',
+        [JSON.stringify(assignmentData), sessionId]
+      );
+    } else {
+      await db.query(
+        'INSERT INTO assignments (session_id, assignment_data) VALUES ($1, $2)',
+        [sessionId, JSON.stringify(assignmentData)]
+      );
+    }
 
     return res.status(201).json({
       success: true,
@@ -637,7 +841,7 @@ const getAssignment = async (req, res) => {
 
 /**
  * POST /api/learning/:sessionId/assignment/submit
- * Accepts and evaluates an assignment submission.
+ * Accepts and evaluates an assignment submission, then recalculates mastery in PostgreSQL.
  */
 const submitAssignment = async (req, res) => {
   try {
@@ -669,12 +873,12 @@ const submitAssignment = async (req, res) => {
     if (isPrebuiltTopic(session.topic)) {
       evalResult = evaluateAssignment(submission);
     } else {
-      // For AI topics: basic evaluation
       evalResult = {
-        score: submission.trim().length > 200 ? 80 : 50,
-        feedback: submission.trim().length > 200
-          ? 'Good detailed submission! Your work has been recorded.'
-          : 'Submission is brief. Elaborate on each task for a higher score.',
+        score: submission.trim().length > 200 ? 85 : 55,
+        feedback:
+          submission.trim().length > 200
+            ? 'Detailed solution provided! Excellent conceptual clarity and application.'
+            : 'Submission is concise. Include more code details and edge-case reasoning for full credit.',
       };
     }
 
@@ -684,15 +888,79 @@ const submitAssignment = async (req, res) => {
       [JSON.stringify({ submission, ...evalResult }), evalResult.score, now, sessionId]
     );
 
+    // Recalculate session mastery to incorporate the assignment score
+    await recalculateSessionMastery(sessionId, userId);
+
     return res.status(200).json({
       success: true,
-      data: evalResult,
+      data: {
+        ...evalResult,
+        masteryUpdated: true,
+      },
     });
   } catch (err) {
     console.error('[Learning] submitAssignment error:', err.message);
     return res.status(500).json({
       success: false,
       error: { code: 'SERVER_ERROR', message: 'Failed to submit assignment.' },
+    });
+  }
+};
+
+/**
+ * GET /api/learning/assignments
+ * Returns all assignments for the authenticated user across sessions.
+ */
+const getUserAssignments = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await db.query(
+      `SELECT a.id, a.session_id, a.assignment_data, a.result, a.score, a.completed_at, a.created_at, ls.topic as course
+       FROM assignments a
+       JOIN learning_sessions ls ON a.session_id = ls.id
+       WHERE ls.user_id = $1
+       ORDER BY a.created_at DESC`,
+      [userId]
+    );
+    return res.status(200).json({
+      success: true,
+      data: { assignments: result.rows },
+      assignments: result.rows,
+    });
+  } catch (err) {
+    console.error('[Learning] getUserAssignments error:', err.message);
+    return res.status(500).json({
+      success: false,
+      error: { code: 'SERVER_ERROR', message: 'Failed to retrieve assignments.' },
+    });
+  }
+};
+
+/**
+ * GET /api/learning/quizzes
+ * Returns all quizzes for the authenticated user across sessions.
+ */
+const getUserQuizzes = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await db.query(
+      `SELECT q.id, q.session_id, q.questions, q.result, q.score, q.completed_at, q.created_at, ls.topic
+       FROM quizzes q
+       JOIN learning_sessions ls ON q.session_id = ls.id
+       WHERE ls.user_id = $1
+       ORDER BY q.created_at DESC`,
+      [userId]
+    );
+    return res.status(200).json({
+      success: true,
+      data: { quizzes: result.rows },
+      quizzes: result.rows,
+    });
+  } catch (err) {
+    console.error('[Learning] getUserQuizzes error:', err.message);
+    return res.status(500).json({
+      success: false,
+      error: { code: 'SERVER_ERROR', message: 'Failed to retrieve quizzes.' },
     });
   }
 };
@@ -709,4 +977,6 @@ module.exports = {
   createAssignment,
   getAssignment,
   submitAssignment,
+  getUserAssignments,
+  getUserQuizzes,
 };

@@ -167,6 +167,39 @@ const initDb = async (options = {}) => {
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_quizzes_session ON quizzes(session_id)`);
 
+    // QUIZ ATTEMPTS
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS quiz_attempts (
+        id                  SERIAL PRIMARY KEY,
+        user_id             INTEGER       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        session_id          INTEGER       NOT NULL REFERENCES learning_sessions(id) ON DELETE CASCADE,
+        quiz_id             INTEGER       REFERENCES quizzes(id) ON DELETE CASCADE,
+        score               INTEGER       NOT NULL DEFAULT 0,
+        total_questions     INTEGER       NOT NULL DEFAULT 0,
+        correct_answers     INTEGER       NOT NULL DEFAULT 0,
+        percentage          INTEGER       NOT NULL DEFAULT 0,
+        completed_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user ON quiz_attempts(user_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_quiz_attempts_session ON quiz_attempts(session_id)`);
+
+    // QUIZ ATTEMPT ANSWERS
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS quiz_attempt_answers (
+        id                  SERIAL PRIMARY KEY,
+        attempt_id          INTEGER       NOT NULL REFERENCES quiz_attempts(id) ON DELETE CASCADE,
+        question_id         VARCHAR(100),
+        concept_id          INTEGER       REFERENCES learning_concepts(id) ON DELETE SET NULL,
+        selected_answer     TEXT,
+        correct_answer      TEXT,
+        is_correct          BOOLEAN       NOT NULL DEFAULT FALSE,
+        created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_quiz_answers_attempt ON quiz_attempt_answers(attempt_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_quiz_answers_concept ON quiz_attempt_answers(concept_id)`);
+
     // ASSIGNMENTS
     await client.query(`
       CREATE TABLE IF NOT EXISTS assignments (

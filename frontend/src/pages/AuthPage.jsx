@@ -187,7 +187,11 @@ export default function AuthPage({ navigateTo }) {
         }
       }
 
-      dispatch({ type: 'user/login', name: user?.name || data.name || 'Learner' });
+      dispatch({
+        type: 'user/login',
+        name: user?.name || data.name || 'Learner',
+        user: user || { name: data.name || (isLogin ? data.email.split('@')[0] : 'Learner') },
+      });
       navigateTo('dashboard');
     } catch (err) {
       setError(err.message || 'Authentication failed. Please check your credentials.');

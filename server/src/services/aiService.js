@@ -184,31 +184,61 @@ Answer the doubt clearly, using the concept as context. Return EXACTLY this JSON
 }
 
 /**
- * Generate a quiz for a completed learning session.
- * Returns: [{ question, options, correctOptionIndex, explanation }]
+ * Generate a personalized 10-question quiz for a learning session.
+ * Questions are mapped directly to concept IDs and adapt to weak areas.
+ * Returns: [{ id, conceptId, conceptTitle, type, question, options: [{value, label, feedback}], correctAnswer, correctOptionIndex, explanation, hint }]
  */
-async function generateQuiz(topic, conceptsSummary) {
+async function generateQuiz(topic, conceptsList = [], weakConcepts = []) {
+  const conceptsSummary = conceptsList
+    .map((c, i) => `Concept ${i + 1} (ID: ${c.id}): "${c.title}" - Status: ${c.status || 'active'}, Score: ${c.score ?? 'untested'}`)
+    .join('\n');
+  
+  const weakSummary = weakConcepts.length > 0
+    ? `Weak concepts needing extra practice / more questions: ${weakConcepts.map((w) => `"${w.title}"`).join(', ')}`
+    : 'No severe weak concepts detected; distribute evenly across concepts.';
+
   const data = await callAI([
     {
       role: 'system',
-      content: `You are an expert tutor creating a multiple-choice quiz.
-Always return valid JSON only.`,
+      content: `You are an expert pedagogical AI creating an interactive concept mastery quiz.
+Always return valid JSON only without markdown formatting.`,
     },
     {
       role: 'user',
-      content: `Create a 5-question multiple-choice quiz for: "${topic}"
+      content: `Create a 10-question multiple-choice quiz for: "${topic}"
 
-Concepts covered:
+Session Concepts:
 ${conceptsSummary}
 
-Return EXACTLY this JSON:
+Student Intelligence:
+${weakSummary}
+
+Requirements:
+- Exactly 10 questions.
+- Map every question to one of the concepts above by conceptId and conceptTitle.
+- If weak concepts exist, include 3-4 questions targeting those weak concepts with clear diagnostic feedback.
+- Each question must have 4 options (A, B, C, D) with distinct labels and helpful option-level feedback explaining why an answer is right or wrong.
+- Include single_select type, clear explanation, and a helpful hint.
+
+Return EXACTLY this JSON structure:
 {
   "questions": [
     {
-      "question": "string",
-      "options": ["option A", "option B", "option C", "option D"],
-      "correctOptionIndex": 0,
-      "explanation": "why this answer is correct"
+      "id": "q1",
+      "conceptId": ${conceptsList[0]?.id || 1},
+      "conceptTitle": "${conceptsList[0]?.title || topic}",
+      "type": "single_select",
+      "question": "question text",
+      "options": [
+        { "value": "A", "label": "Option A text", "feedback": "Why A is right/wrong" },
+        { "value": "B", "label": "Option B text", "feedback": "Why B is right/wrong" },
+        { "value": "C", "label": "Option C text", "feedback": "Why C is right/wrong" },
+        { "value": "D", "label": "Option D text", "feedback": "Why D is right/wrong" }
+      ],
+      "correctAnswer": "B",
+      "correctOptionIndex": 1,
+      "explanation": "Comprehensive explanation of why B is correct",
+      "hint": "Gentle nudge toward the answer"
     }
   ]
 }`,
@@ -219,32 +249,71 @@ Return EXACTLY this JSON:
     throw new Error('AI_MALFORMED_RESPONSE: questions array missing');
   }
 
-  return data.questions;
+  // Normalize options to ensure compatibility
+  const normalized = data.questions.map((q, idx) => {
+    let opts = q.options;
+    let correctIdx = q.correctOptionIndex ?? 0;
+    let correctAns = q.correctAnswer || (typeof opts[correctIdx] === 'string' ? opts[correctIdx] : opts[correctIdx]?.value || 'A');
+
+    if (Array.isArray(opts) && typeof opts[0] === 'string') {
+      opts = opts.map((optText, i) => ({
+        value: String.fromCharCode(65 + i),
+        label: optText,
+        feedback: i === correctIdx ? 'Correct answer.' : 'Incorrect option.',
+      }));
+    }
+
+    return {
+      id: q.id || `q_${idx + 1}`,
+      conceptId: q.conceptId || conceptsList[idx % (conceptsList.length || 1)]?.id,
+      conceptTitle: q.conceptTitle || conceptsList[idx % (conceptsList.length || 1)]?.title || topic,
+      type: q.type || 'single_select',
+      question: q.question,
+      options: opts,
+      correctAnswer: correctAns,
+      correctOptionIndex: correctIdx,
+      explanation: q.explanation || 'Review the concept material for more details.',
+      hint: q.hint || '',
+    };
+  });
+
+  return normalized;
 }
 
 /**
- * Generate an assignment for a completed learning session.
- * Returns: { title, description, tasks: [string] }
+ * Generate a personalized assignment targeting weak concepts.
+ * Returns: { title, description, difficulty, targetConcepts: [string], tasks: [string], expectedOutput: string }
  */
-async function generateAssignment(topic, conceptsSummary) {
+async function generateAssignment(topic, conceptsList = [], weakConcepts = []) {
+  const weakSummary = weakConcepts.length > 0
+    ? `Targeted weak concepts: ${weakConcepts.map((w) => `"${w.title}" (score: ${w.score ?? 'low'})`).join(', ')}`
+    : `General mastery consolidation across ${topic}`;
+
   const data = await callAI([
     {
       role: 'system',
-      content: `You are an expert tutor creating a practical assignment.
+      content: `You are an expert tutor creating a practical, personalized assignment tailored to student weaknesses.
 Always return valid JSON only.`,
     },
     {
       role: 'user',
-      content: `Create a practical assignment for a student who completed learning: "${topic}"
+      content: `Create a targeted practice assignment for: "${topic}"
 
-Concepts covered:
-${conceptsSummary}
+Student Learning Context:
+${weakSummary}
+
+Requirements:
+- Title should reflect the learning topic and focus area.
+- Description should explicitly mention what the student is practicing to overcome their weak areas.
+- 3 to 5 clear, actionable, progressive tasks.
+- Difficulty should be calibrated (beginner if weak scores < 50%, intermediate if 50-75%, advanced if >75%).
 
 Return EXACTLY this JSON:
 {
   "title": "string",
   "description": "string",
   "difficulty": "beginner|intermediate|advanced",
+  "targetConcepts": ["Concept Name 1", "Concept Name 2"],
   "tasks": ["Task 1 description", "Task 2 description", "Task 3 description"],
   "expectedOutput": "what a successful submission should demonstrate"
 }`,
