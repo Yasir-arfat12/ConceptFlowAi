@@ -36,16 +36,19 @@ function issueToken(res, userId) {
 
 const register = async (req, res) => {
   try {
-    const rawName = (req.body.name || `${req.body.firstName || ''} ${req.body.lastName || ''}`).trim();
+    const rawName = typeof req.body.name === 'string'
+      ? req.body.name.trim()
+      : (req.body.firstName ? `${req.body.firstName} ${req.body.lastName || ''}`.trim() : '');
+
     const payload = {
-      name: rawName || 'Learner',
-      email: req.body.email,
-      password: req.body.password,
+      name: rawName,
+      email: typeof req.body.email === 'string' ? req.body.email.trim() : '',
+      password: typeof req.body.password === 'string' ? req.body.password : '',
     };
 
     const parsed = registerSchema.safeParse(payload);
     if (!parsed.success) {
-      const msg = parsed.error.errors[0].message;
+      const msg = parsed.error?.issues?.[0]?.message || parsed.error?.errors?.[0]?.message || 'Invalid registration details';
       return res.status(422).json({
         success: false,
         error: msg,

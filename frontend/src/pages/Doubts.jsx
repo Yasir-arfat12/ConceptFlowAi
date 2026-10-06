@@ -28,7 +28,7 @@ export default function Doubts({ goBack }) {
     if (!title.trim()) return;
     const id = makeId('d');
     const t = title.trim();
-    dispatch({ type: 'doubt/add', doubt: { id, title: t, details: details.trim(), author: state.user.name, at: new Date().toISOString(), resolved: false, likes: 0, liked: false, replies: [] } });
+    dispatch({ type: 'doubt/add', doubt: { id, title: t, details: details.trim(), author: state?.user?.name || 'Learner', at: new Date().toISOString(), resolved: false, likes: 0, liked: false, replies: [] } });
     setTitle(''); setDetails(''); setAskOpen(false); setExpanded(id);
     try {
       const body = await askTutor({ question: t, context: { title: t } });
@@ -39,7 +39,7 @@ export default function Doubts({ goBack }) {
   const reply = (e, id) => {
     e.preventDefault();
     if (!replyText.trim()) return;
-    dispatch({ type: 'doubt/reply', id, reply: { id: makeId('r'), author: state.user.name, at: new Date().toISOString(), body: replyText.trim() } });
+    dispatch({ type: 'doubt/reply', id, reply: { id: makeId('r'), author: state?.user?.name || 'Learner', at: new Date().toISOString(), body: replyText.trim() } });
     setReplyText('');
   };
 

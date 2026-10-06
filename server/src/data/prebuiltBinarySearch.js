@@ -255,32 +255,44 @@ Binary search [10, 55]:
   // Prebuilt doubt responses (keyword-based matching)
   doubtResponses: [
     {
-      keywords: ['sorted', 'sort', 'why sorted', 'must be sorted'],
-      answer: 'Binary search relies on sorted order so that when we check the middle element, we can definitively eliminate half the remaining elements. If the array weren\'t sorted, we couldn\'t know which half might contain the target — it could be anywhere.',
+      keywords: ['sorted', 'sort', 'why sorted', 'must be sorted', 'unsorted'],
+      answer: 'Binary search relies strictly on sorted order so that when we compare the target with the middle element, we can definitively eliminate half of the remaining elements. If the array were unsorted, examining the middle provides zero guarantees about which side contains the target, rendering divide-and-conquer impossible.',
     },
     {
       keywords: ['mid + 1', 'mid - 1', 'plus 1', 'minus 1', 'infinite loop', 'stuck', 'loop forever'],
-      answer: 'We use mid+1 and mid-1 because we\'ve already checked the element at mid and confirmed it\'s not the target. Including mid in the next search is redundant and — worse — can cause an infinite loop where the pointers never cross.',
+      answer: 'We use `left = mid + 1` and `right = mid - 1` because `nums[mid]` has already been evaluated and confirmed not to be our target. Excluding `mid` strictly reduces the search space interval on every iteration, preventing fatal infinite loops when `left` and `right` are adjacent.',
     },
     {
-      keywords: ['left <= right', 'left < right', 'condition', 'while condition'],
-      answer: 'The condition left <= right is critical. Using left < right would miss the case where the search space narrows to exactly one element (left === right). That single element might be the target!',
+      keywords: ['left <= right', 'left < right', 'condition', 'while condition', 'while loop', 'loop condition'],
+      answer: 'The condition `while (left <= right)` is critical. If you wrote `while (left < right)`, the loop would terminate prematurely when the search space narrows to a single element (`left === right`), missing the target if it happens to sit at that exact index.',
     },
     {
-      keywords: ['overflow', 'integer overflow', '(left + right)', 'mid calculation'],
-      answer: 'We use left + (right - left) // 2 instead of (left + right) // 2 to prevent integer overflow. In languages like Java and C++ with fixed-size integers, if left and right are both near the maximum integer value, their sum would exceed the limit before division. The subtraction approach avoids this.',
+      keywords: ['overflow', 'integer overflow', '(left + right)', 'mid calculation', 'large numbers', '32-bit'],
+      answer: 'We write `mid = left + (right - left) // 2` instead of `(left + right) // 2` to prevent 32-bit integer overflow. In strongly-typed languages like Java, C, and C++, adding two large integer pointers can exceed 2,147,483,647 (INT_MAX) and wrap into negative numbers before division.',
     },
     {
-      keywords: ['time complexity', 'o(log n)', 'log n', 'fast', 'how fast'],
-      answer: 'Binary search has O(log n) time complexity because each step eliminates half the search space. For 1 million elements it takes at most ~20 steps. For 1 billion, only ~30 steps. This logarithmic behavior makes it incredibly fast.',
+      keywords: ['time complexity', 'o(log n)', 'log n', 'fast', 'how fast', 'big o', 'steps', 'comparisons'],
+      answer: 'Binary search runs in O(log n) time complexity because each comparison halves the remaining search interval (n/2, n/4, n/8... down to 1). For 1,000,000 elements, it takes at most ~20 comparisons (since 2^20 ≈ 1,048,576). For 1,000,000,000 elements, it takes at most ~30 steps!',
     },
     {
-      keywords: ['first occurrence', 'duplicate', 'last occurrence', 'multiple matches'],
-      answer: 'For first occurrence: when nums[mid] === target, instead of returning immediately, record the index as your answer and set right = mid - 1 to keep searching left for an earlier match. For last occurrence: set left = mid + 1 to keep searching right.',
+      keywords: ['space complexity', 'o(1)', 'memory', 'auxiliary', 'recursive vs iterative'],
+      answer: 'Iterative binary search uses O(1) auxiliary space because it only maintains three pointer variables (`left`, `right`, `mid`). Recursive binary search uses O(log n) space due to call stack frames.',
     },
     {
-      keywords: ['space complexity', 'o(1)', 'memory', 'auxiliary'],
-      answer: 'The iterative version of binary search uses O(1) auxiliary space — just a few pointer variables (left, right, mid). The recursive version uses O(log n) space due to the call stack.',
+      keywords: ['first occurrence', 'duplicate', 'last occurrence', 'multiple matches', 'bisect', 'lower bound', 'upper bound'],
+      answer: 'To find the FIRST occurrence in duplicate arrays: when `nums[mid] == target`, record `result = mid` and set `right = mid - 1` to continue searching the left half. To find the LAST occurrence: when `nums[mid] == target`, record `result = mid` and set `left = mid + 1` to continue searching the right half.',
+    },
+    {
+      keywords: ['linear search vs binary search', 'difference', 'compare', 'linear vs binary', 'linear search'],
+      answer: 'Linear search scans items sequentially one by one in O(n) time and works on any array. Binary search requires sorted data, examines the midpoint, and cuts the search space in half each step in O(log n) time. For 1 million elements, Linear Search takes up to 1,000,000 comparisons, while Binary Search takes at most 20.',
+    },
+    {
+      keywords: ['answer', 'binary search on answer', 'monotonic', 'predicate', 'koko', 'ship'],
+      answer: 'Binary Search on Answer applies when you need to find the minimum or maximum parameter X satisfying a monotonic condition `canAchieve(X)`. You define a search range [min_val, max_val] and binary search the range using an O(n) feasibility check.',
+    },
+    {
+      keywords: ['empty', 'edge case', 'single element', 'missing', 'not found', '-1'],
+      answer: 'For an empty array (`left = 0`, `right = -1`), the condition `left <= right` is immediately false, so the loop exits safely returning `-1`. For a missing target, the pointers eventually cross (`left > right`), loop terminates, and `-1` is returned.',
     },
   ],
 
@@ -461,19 +473,417 @@ Binary search [10, 55]:
     ],
   },
 
-  // Prebuilt assignment
+  // Prebuilt default assignment metadata
   assignment: {
     title: 'Binary Search Mastery Assignment',
-    description: 'Complete the following tasks to demonstrate your mastery of Binary Search. Each task applies a concept from the learning session.',
-    difficulty: 'intermediate',
-    tasks: [
-      'Task 1: Implement `binary_search(nums, target)` — standard iterative binary search. Test with: [1,3,5,7,9], target=5 (should return 2) and target=4 (should return -1).',
-      'Task 2: Implement `find_first_occurrence(nums, target)` — returns the index of the FIRST occurrence in an array with possible duplicates. Test with [1,2,2,2,3], target=2 (should return 1).',
-      'Task 3: Write a paragraph (in your own words) explaining WHY binary search is O(log n) — not just stating the complexity, but explaining the halving process.',
-    ],
-    expectedOutput: 'A working binary_search function, a working find_first_occurrence function, and a clear explanation of O(log n) complexity mentioning the halving process.',
+    description: 'Personalized practice questions targeting edge cases, implementation details, and boundary conditions.',
+    difficulty: 'developing',
   },
 };
+
+// ─── Prebuilt Question Bank for Binary Search Concepts ────────────────────────
+const BINARY_SEARCH_QUESTION_BANK = [
+  // Concept 1: Searching Basics and Why Sorted Data Matters
+  {
+    conceptTitleMatch: 'basics',
+    fallbackIndex: 0,
+    questions: [
+      {
+        question: 'Why does Binary Search fail on an unsorted array such as `[7, 2, 9, 1, 5]` when searching for `target = 5`?',
+        options: [
+          { value: 'A', label: 'Linear search is faster on unsorted arrays.' },
+          { value: 'B', label: 'Checking the middle element does not give any guarantee about which half contains the target, so discarding half the array might eliminate the target.' },
+          { value: 'C', label: 'Unsorted arrays cannot be indexed using two pointers.' },
+          { value: 'D', label: 'The middle index calculation produces a decimal number on unsorted arrays.' }
+        ],
+        correctAnswer: 'B',
+        explanation: 'The fundamental invariant of binary search is that if target > nums[mid], the target CANNOT be in the left half. This guarantee only holds when every element before mid is <= nums[mid]. Without sorted order, discarding half of the elements is completely invalid.',
+        hint: 'Think about what property allows binary search to safely throw away half of the remaining items.'
+      },
+      {
+        question: 'In the best-case scenario, how many comparisons does Linear Search take versus Binary Search to find the target?',
+        options: [
+          { value: 'A', label: 'Linear Search: 1 comparison; Binary Search: 1 comparison (if target is at index 0 and mid respectively).' },
+          { value: 'B', label: 'Linear Search: O(n); Binary Search: O(log n) always.' },
+          { value: 'C', label: 'Linear Search: 0 comparisons; Binary Search: 2 comparisons.' },
+          { value: 'D', label: 'Both always take exactly n/2 comparisons.' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Both algorithms have a best-case time complexity of O(1). Linear search finds it in 1 step if the target is the first element (index 0); binary search finds it in 1 step if the target happens to be at the exact middle index.',
+        hint: 'Consider what happens when the first element checked by each algorithm happens to be the target.'
+      }
+    ]
+  },
+
+  // Concept 2: Binary Search Intuition
+  {
+    conceptTitleMatch: 'intuition',
+    fallbackIndex: 1,
+    questions: [
+      {
+        question: 'Given sorted array `nums = [3, 8, 12, 17, 24, 35, 42]`, you are searching for `target = 35`. In the first step, `left = 0`, `right = 6`, `mid = 3` (`nums[3] = 17`). What is the exact update in the next step?',
+        options: [
+          { value: 'A', label: 'right = 2 (search left half [3, 8, 12])' },
+          { value: 'B', label: 'left = 4 (search right half [24, 35, 42])' },
+          { value: 'C', label: 'left = 3 (keep mid in search space)' },
+          { value: 'D', label: 'right = 3 (search left half including 17)' }
+        ],
+        correctAnswer: 'B',
+        explanation: 'Since nums[mid] (17) < target (35), we know 35 cannot exist in the left half [3, 8, 12] nor at mid (17). Therefore, we update `left = mid + 1` (left = 4) to search the sub-array [24, 35, 42].',
+        hint: 'When nums[mid] < target, which half is discarded and where does left move?'
+      },
+      {
+        question: 'How does binary search eliminate half the search space at each iteration?',
+        options: [
+          { value: 'A', label: 'By sorting the remaining sub-array on each step.' },
+          { value: 'B', label: 'By comparing target with the middle element and moving one pointer past mid.' },
+          { value: 'C', label: 'By deleting elements from memory dynamically.' },
+          { value: 'D', label: 'By checking both the first and last elements simultaneously.' }
+        ],
+        correctAnswer: 'B',
+        explanation: 'Binary search maintains two pointers (left and right). By comparing nums[mid] to the target, it resets either left to mid + 1 or right to mid - 1, thereby cutting the active pointer window in half.',
+        hint: 'Review how the left and right boundary pointers shrink the window.'
+      }
+    ]
+  },
+
+  // Concept 3: The Binary Search Algorithm
+  {
+    conceptTitleMatch: 'algorithm',
+    fallbackIndex: 2,
+    questions: [
+      {
+        question: 'Why do production libraries write `mid = left + (right - left) // 2` instead of `mid = (left + right) // 2`?',
+        options: [
+          { value: 'A', label: 'To avoid potential 32-bit integer overflow when left + right exceeds 2,147,483,647.' },
+          { value: 'B', label: 'Because division by 2 is slower than subtraction.' },
+          { value: 'C', label: 'To round up instead of rounding down.' },
+          { value: 'D', label: 'It is required only for arrays of odd length.' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'If `left` and `right` are large positive integers (e.g., in languages with fixed 32-bit integers like Java, C, C++), adding them `(left + right)` can exceed 2^31 - 1 and wrap into negative numbers. Using `left + (right - left) / 2` mathematically computes the same midpoint while keeping all intermediate operations within bounds.',
+        hint: 'Consider what happens when adding two huge numbers in fixed-width integer memory.'
+      },
+      {
+        question: 'What is the correct while loop condition for standard binary search?',
+        options: [
+          { value: 'A', label: '`while (left <= right)`' },
+          { value: 'B', label: '`while (left < right)`' },
+          { value: 'C', label: '`while (left != right)`' },
+          { value: 'D', label: '`while (left + 1 < right)`' }
+        ],
+        correctAnswer: 'A',
+        explanation: '`while (left <= right)` is necessary so that when the search space shrinks to a single element (`left === right`), that final element is still checked! Using `left < right` would exit prematurely and miss targets located at that single remaining position.',
+        hint: 'What happens when search space shrinks to only 1 element where left == right?'
+      }
+    ]
+  },
+
+  // Concept 4: Implementing Binary Search
+  {
+    conceptTitleMatch: 'implement',
+    fallbackIndex: 3,
+    questions: [
+      {
+        question: 'Look at this buggy binary search code. What bug will occur?\n```python\nwhile left <= right:\n    mid = (left + right) // 2\n    if nums[mid] == target:\n        return mid\n    elif nums[mid] < target:\n        left = mid   # <--- BUG HERE\n    else:\n        right = mid  # <--- BUG HERE\n```',
+        options: [
+          { value: 'A', label: 'It causes an infinite loop when the target is missing or when left + 1 == right.' },
+          { value: 'B', label: 'It throws an IndexError on empty arrays.' },
+          { value: 'C', label: 'It always returns index 0.' },
+          { value: 'D', label: 'It returns None instead of -1.' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'When `left = mid` is used instead of `left = mid + 1`, the search space does not shrink if `mid == left`. If `left = 0, right = 1`, `mid = 0`, and `nums[0] < target`, `left` stays `0`, creating an infinite loop where the pointers never cross.',
+        hint: 'If left is never strictly increased past mid, does the while loop ever terminate when left and right are adjacent?'
+      },
+      {
+        question: 'If `nums = [1, 3, 5, 7, 9, 11]` and we execute standard binary search for `target = 8`, what sequence of `mid` values is inspected?',
+        options: [
+          { value: 'A', label: 'mid=2 (5), mid=4 (9), mid=3 (7)' },
+          { value: 'B', label: 'mid=2 (5), mid=3 (7), mid=4 (9)' },
+          { value: 'C', label: 'mid=3 (7), mid=4 (9)' },
+          { value: 'D', label: 'mid=0 (1), mid=1 (3), mid=2 (5)' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Initial: left=0, right=5 -> mid=2 (nums[2]=5 < 8) -> left=3. Next: left=3, right=5 -> mid=4 (nums[4]=9 > 8) -> right=3. Next: left=3, right=3 -> mid=3 (nums[3]=7 < 8) -> left=4. Now left(4) > right(3), loop exits -> returns -1.',
+        hint: 'Trace the mid calculation step by step: (0+5)//2=2, then (3+5)//2=4, then (3+3)//2=3.'
+      }
+    ]
+  },
+
+  // Concept 5: Boundary Conditions and Edge Cases
+  {
+    conceptTitleMatch: 'boundary',
+    fallbackIndex: 4,
+    questions: [
+      {
+        question: 'In an array with duplicate elements `nums = [1, 2, 2, 2, 3]`, how do you modify binary search to guarantee finding the FIRST occurrence of `target = 2`?',
+        options: [
+          { value: 'A', label: 'When `nums[mid] == target`, record `result = mid` and set `right = mid - 1` to continue searching the left half.' },
+          { value: 'B', label: 'When `nums[mid] == target`, return `mid - 1` immediately.' },
+          { value: 'C', label: 'Perform linear search from left to right as soon as target is seen.' },
+          { value: 'D', label: 'Set `left = mid + 1` to push pointers to the beginning.' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Standard binary search returns any index matching target. To find the FIRST occurrence, upon seeing `nums[mid] == target`, save `result = mid` as a candidate and force the search to continue in the left half by setting `right = mid - 1`. If an earlier duplicate exists, it will overwrite result with a smaller index.',
+        hint: 'To find the earliest index on the left, which pointer must be moved leftward upon matching target?'
+      },
+      {
+        question: 'In the same array `nums = [1, 2, 2, 2, 3]`, how do you find the LAST occurrence of `target = 2`?',
+        options: [
+          { value: 'A', label: 'When `nums[mid] == target`, record `result = mid` and set `left = mid + 1` to continue searching the right half.' },
+          { value: 'B', label: 'When `nums[mid] == target`, return `mid + 1` immediately.' },
+          { value: 'C', label: 'Search from right to left using linear search.' },
+          { value: 'D', label: 'Set `right = mid - 1` when nums[mid] == target.' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'For the LAST occurrence, when `nums[mid] == target`, store `result = mid` and search the right half by setting `left = mid + 1`. This finds any subsequent duplicates on the right while preserving the highest match found so far.',
+        hint: 'To find the latest occurrence on the right, which pointer moves rightward?'
+      },
+      {
+        question: 'What happens when binary search is executed on an empty array `nums = []` with `target = 10`?',
+        options: [
+          { value: 'A', label: '`left = 0`, `right = -1`, the condition `0 <= -1` evaluates to False immediately, and the function safely returns `-1` without errors.' },
+          { value: 'B', label: 'It raises an `IndexError: list index out of range`.' },
+          { value: 'C', label: 'It results in a division by zero error.' },
+          { value: 'D', label: 'It returns `0`.' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'For an empty array, len(nums) is 0. Initializing `left = 0` and `right = -1` makes `left <= right` (0 <= -1) immediately false. The loop body never executes, and -1 is safely returned without accessing any array indices.',
+        hint: 'Check the initial values of left and right: left=0, right=len-1=-1.'
+      },
+      {
+        question: 'When `target` is not found in a sorted array, what does the final value of the `left` pointer represent?',
+        options: [
+          { value: 'A', label: 'The insertion index (where target should be inserted to keep the array sorted).' },
+          { value: 'B', label: 'The maximum value in the array.' },
+          { value: 'C', label: 'Always index 0.' },
+          { value: 'D', label: 'Always index len(nums) - 1.' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'This is the basis of Python\'s `bisect_left` and C++\'s `lower_bound`. When binary search terminates without finding the target, `left` points exactly to the first element greater than target, which is the exact index where target would be inserted.',
+        hint: 'Think about Python’s bisect_left / lower_bound function behavior.'
+      }
+    ]
+  },
+
+  // Concept 6: Time Complexity, Variations and Applications
+  {
+    conceptTitleMatch: 'complexity',
+    fallbackIndex: 5,
+    questions: [
+      {
+        question: 'If an array has 1,000,000 elements, what is the MAXIMUM number of comparisons binary search will ever make?',
+        options: [
+          { value: 'A', label: 'Approximately 20 comparisons (since 2^20 ≈ 1,048,576)' },
+          { value: 'B', label: '500,000 comparisons' },
+          { value: 'C', label: '1,000 comparisons' },
+          { value: 'D', label: '100 comparisons' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Because binary search cuts the search space in half at every step, the number of steps is ceil(log2(n)). For 1,000,000 elements, ceil(log2(1,000,000)) = 20 comparisons at most!',
+        hint: 'Compute ceil(log2(1,000,000)). 2^10 = 1024, 2^20 ≈ 1,000,000.'
+      },
+      {
+        question: 'What is "Binary Search on Answer" (monotonic predicate search)?',
+        options: [
+          { value: 'A', label: 'Applying binary search over a range of possible answers [min_val, max_val] where a condition function `check(x)` transitions monotonically from False to True.' },
+          { value: 'B', label: 'Guessing the answer at random and verifying with linear search.' },
+          { value: 'C', label: 'Sorting the output array after search completion.' },
+          { value: 'D', label: 'Searching backwards from right to left.' }
+        ],
+        correctAnswer: 'A',
+        explanation: 'Binary Search on Answer is a powerful problem-solving pattern used in LeetCode problems (like "Koko Eating Bananas" or "Ship Within D Days"). You search over the numerical answer range [lo, hi] by testing if a candidate value `mid` is feasible with an O(n) predicate.',
+        hint: 'Consider how we find the minimum capacity or speed that satisfies a condition.'
+      }
+    ]
+  }
+];
+
+/**
+ * Deterministically generates a personalized 8-question assignment for Binary Search
+ * weighted heavily towards the student's weakest concepts.
+ */
+function generatePrebuiltBinarySearchAssignment(conceptsList = [], weakConceptsList = [], snapshot = {}) {
+  // Map concept IDs to questions
+  const conceptMap = new Map();
+  (conceptsList || []).forEach((c, idx) => {
+    conceptMap.set(c.id, c);
+    conceptMap.set(idx, c);
+  });
+
+  const getConcept = (matchStr, fallbackIdx) => {
+    const found = conceptsList.find((c) =>
+      (c.title || '').toLowerCase().includes(matchStr.toLowerCase())
+    );
+    return found || conceptsList[fallbackIdx] || { id: fallbackIdx + 1, title: 'Binary Search Concept' };
+  };
+
+  // Determine weak concepts in Binary Search
+  const weakTitles = (weakConceptsList || []).map((w) => (w.title || w.conceptTitle || '').toLowerCase());
+  const isBoundaryWeak = weakTitles.some((t) => t.includes('boundary') || t.includes('edge') || t.includes('duplicate'));
+  const isImplementationWeak = weakTitles.some((t) => t.includes('implement') || t.includes('while'));
+  const isAlgorithmWeak = weakTitles.some((t) => t.includes('algorithm') || t.includes('overflow'));
+
+  const questions = [];
+  let qCounter = 1;
+
+  const boundaryConcept = getConcept('boundary', 4);
+  const implementConcept = getConcept('implement', 3);
+  const algorithmConcept = getConcept('algorithm', 2);
+  const intuitionConcept = getConcept('intuition', 1);
+  const basicsConcept = getConcept('basics', 0);
+  const complexityConcept = getConcept('complexity', 5);
+
+  // If boundary is weak, prioritize boundary & implementation questions (70% weak, 30% reinforcement)
+  if (isBoundaryWeak || (!isImplementationWeak && !isAlgorithmWeak)) {
+    // 4 Boundary questions (Weak focus - 50%)
+    BINARY_SEARCH_QUESTION_BANK[4].questions.forEach((q) => {
+      questions.push({
+        id: `q${qCounter++}`,
+        conceptId: boundaryConcept.id,
+        conceptTitle: boundaryConcept.title,
+        type: 'multiple_choice',
+        ...q,
+      });
+    });
+
+    // 2 Implementation questions (Secondary focus - 25%)
+    BINARY_SEARCH_QUESTION_BANK[3].questions.forEach((q) => {
+      questions.push({
+        id: `q${qCounter++}`,
+        conceptId: implementConcept.id,
+        conceptTitle: implementConcept.title,
+        type: 'multiple_choice',
+        ...q,
+      });
+    });
+
+    // 1 Algorithm question (Reinforcement)
+    questions.push({
+      id: `q${qCounter++}`,
+      conceptId: algorithmConcept.id,
+      conceptTitle: algorithmConcept.title,
+      type: 'multiple_choice',
+      ...BINARY_SEARCH_QUESTION_BANK[2].questions[0],
+    });
+
+    // 1 Complexity question (Reinforcement)
+    questions.push({
+      id: `q${qCounter++}`,
+      conceptId: complexityConcept.id,
+      conceptTitle: complexityConcept.title,
+      type: 'multiple_choice',
+      ...BINARY_SEARCH_QUESTION_BANK[5].questions[0],
+    });
+  } else if (isImplementationWeak) {
+    // 2 Implementation questions (Focus)
+    BINARY_SEARCH_QUESTION_BANK[3].questions.forEach((q) => {
+      questions.push({
+        id: `q${qCounter++}`,
+        conceptId: implementConcept.id,
+        conceptTitle: implementConcept.title,
+        type: 'multiple_choice',
+        ...q,
+      });
+    });
+
+    // 2 Boundary questions
+    BINARY_SEARCH_QUESTION_BANK[4].questions.slice(0, 2).forEach((q) => {
+      questions.push({
+        id: `q${qCounter++}`,
+        conceptId: boundaryConcept.id,
+        conceptTitle: boundaryConcept.title,
+        type: 'multiple_choice',
+        ...q,
+      });
+    });
+
+    // 2 Algorithm questions
+    BINARY_SEARCH_QUESTION_BANK[2].questions.forEach((q) => {
+      questions.push({
+        id: `q${qCounter++}`,
+        conceptId: algorithmConcept.id,
+        conceptTitle: algorithmConcept.title,
+        type: 'multiple_choice',
+        ...q,
+      });
+    });
+
+    // 1 Basics question
+    questions.push({
+      id: `q${qCounter++}`,
+      conceptId: basicsConcept.id,
+      conceptTitle: basicsConcept.title,
+      type: 'multiple_choice',
+      ...BINARY_SEARCH_QUESTION_BANK[0].questions[0],
+    });
+
+    // 1 Complexity question
+    questions.push({
+      id: `q${qCounter++}`,
+      conceptId: complexityConcept.id,
+      conceptTitle: complexityConcept.title,
+      type: 'multiple_choice',
+      ...BINARY_SEARCH_QUESTION_BANK[5].questions[0],
+    });
+  } else {
+    // Balanced distribution targeting weak concepts (Total 8 questions)
+    // 1 from each of the 6 concepts
+    BINARY_SEARCH_QUESTION_BANK.forEach((group, gIdx) => {
+      const c = conceptsList[gIdx] || { id: gIdx + 1, title: 'Concept ' + (gIdx + 1) };
+      if (group.questions[0]) {
+        questions.push({
+          id: `q${qCounter++}`,
+          conceptId: c.id,
+          conceptTitle: c.title,
+          type: 'multiple_choice',
+          ...group.questions[0],
+        });
+      }
+    });
+
+    // Plus 2 additional targeted questions from Boundary / Implementation
+    if (BINARY_SEARCH_QUESTION_BANK[4].questions[1]) {
+      questions.push({
+        id: `q${qCounter++}`,
+        conceptId: boundaryConcept.id,
+        conceptTitle: boundaryConcept.title,
+        type: 'multiple_choice',
+        ...BINARY_SEARCH_QUESTION_BANK[4].questions[1],
+      });
+    }
+    if (BINARY_SEARCH_QUESTION_BANK[3].questions[1]) {
+      questions.push({
+        id: `q${qCounter++}`,
+        conceptId: implementConcept.id,
+        conceptTitle: implementConcept.title,
+        type: 'multiple_choice',
+        ...BINARY_SEARCH_QUESTION_BANK[3].questions[1],
+      });
+    }
+  }
+
+  // Ensure exactly 8 questions
+  const finalQuestions = questions.slice(0, 8);
+
+  const focusTitle = snapshot.weakConcepts?.[0]?.conceptTitle || (isBoundaryWeak ? 'Boundary Conditions and Edge Cases' : 'Implementation');
+
+  return {
+    topic: 'Binary Search',
+    title: `Personalized Binary Search Practice`,
+    description: `Personalized 8-question practice set based on your completed learning session. Focus area: ${focusTitle}.`,
+    difficulty: snapshot.difficulty || 'developing',
+    sessionMastery: snapshot.overallMastery || 71,
+    focusConcepts: snapshot.weakConcepts && snapshot.weakConcepts.length > 0 ? snapshot.weakConcepts : [
+      { conceptId: boundaryConcept.id, conceptTitle: boundaryConcept.title, mastery: 43 }
+    ],
+    strongConcepts: snapshot.strongConcepts && snapshot.strongConcepts.length > 0 ? snapshot.strongConcepts : [
+      { conceptId: basicsConcept.id, conceptTitle: basicsConcept.title, mastery: 91 }
+    ],
+    questions: finalQuestions,
+  };
+}
 
 // ─── Evaluation Functions ────────────────────────────────────────────────────
 
@@ -550,7 +960,7 @@ function evaluateDoubt(question) {
  */
 function evaluateAssignment(submission) {
   if (!submission || submission.trim().length < 50) {
-    return { score: 30, feedback: 'Your submission is very short. Make sure to complete all three tasks.' };
+    return { score: 30, feedback: 'Your submission is very short. Make sure to complete all tasks.' };
   }
   const sub = submission.toLowerCase();
   let score = 50;
@@ -572,7 +982,7 @@ function evaluateAssignment(submission) {
   score = Math.min(100, score);
   const feedback = feedbackPoints.length > 0
     ? feedbackPoints.join(' ') + (score < 80 ? ' Review boundary conditions for find_first_occurrence.' : ' Excellent work!')
-    : 'Partial submission detected. Ensure you completed all 3 tasks with working code and explanation.';
+    : 'Partial submission detected. Ensure you completed all tasks with working code and explanation.';
 
   return { score, feedback };
 }
@@ -582,5 +992,7 @@ module.exports = {
   evaluateCheckpoint,
   evaluateDoubt,
   evaluateAssignment,
+  generatePrebuiltBinarySearchAssignment,
   PASS_SCORE,
 };
+

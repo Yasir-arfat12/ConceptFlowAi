@@ -281,50 +281,105 @@ Return EXACTLY this JSON structure:
 }
 
 /**
- * Generate a personalized assignment targeting weak concepts.
- * Returns: { title, description, difficulty, targetConcepts: [string], tasks: [string], expectedOutput: string }
+ * Generate a personalized interactive assignment targeting weak concepts.
+ * Returns: { topic, title, description, difficulty, sessionMastery, focusConcepts, strongConcepts, questions: [8 questions] }
  */
-async function generateAssignment(topic, conceptsList = [], weakConcepts = []) {
+async function generateAssignment(topic, conceptsList = [], weakConcepts = [], snapshot = {}) {
+  const conceptsSummary = conceptsList
+    .map((c) => `- Concept ID ${c.id}: "${c.title}" (Score: ${c.score !== null ? c.score + '%' : 'untested'}, Status: ${c.status})`)
+    .join('\n');
+
   const weakSummary = weakConcepts.length > 0
-    ? `Targeted weak concepts: ${weakConcepts.map((w) => `"${w.title}" (score: ${w.score ?? 'low'})`).join(', ')}`
-    : `General mastery consolidation across ${topic}`;
+    ? `Targeted Weak Concepts (MUST have majority of questions):\n` +
+      weakConcepts.map((w) => `* Concept ID ${w.id || w.conceptId}: "${w.title || w.conceptTitle}" (Current Mastery: ${w.score ?? w.mastery ?? 'Low'})`).join('\n')
+    : `General reinforcement across all completed concepts.`;
+
+  const difficulty = snapshot.difficulty || 'developing';
+  const overallMastery = snapshot.overallMastery || 70;
 
   const data = await callAI([
     {
       role: 'system',
-      content: `You are an expert tutor creating a practical, personalized assignment tailored to student weaknesses.
+      content: `You are an expert AI tutor creating a personalized 8-question practice assignment tailored specifically to the student's weaknesses.
+Your assignment MUST contain exactly 8 high-quality, concept-mapped multiple choice questions (with 4 options: A, B, C, D), detailed explanations for why the correct answer is right and why distractors are wrong, and helpful hints.
+Allocate ~70% (5-6 questions) to the weakest concepts and ~30% (2-3 questions) to reinforce strong concepts and applications.
+Every question MUST include the exact numerical conceptId and conceptTitle matching the provided list.
 Always return valid JSON only.`,
     },
     {
       role: 'user',
-      content: `Create a targeted practice assignment for: "${topic}"
+      content: `Create a personalized 8-question practice assignment for: "${topic}"
 
-Student Learning Context:
+Student Performance Context:
+- Overall Mastery: ${overallMastery}%
+- Calculated Difficulty: ${difficulty}
+- Session Concepts:
+${conceptsSummary}
+
 ${weakSummary}
 
-Requirements:
-- Title should reflect the learning topic and focus area.
-- Description should explicitly mention what the student is practicing to overcome their weak areas.
-- 3 to 5 clear, actionable, progressive tasks.
-- Difficulty should be calibrated (beginner if weak scores < 50%, intermediate if 50-75%, advanced if >75%).
-
-Return EXACTLY this JSON:
+Return EXACTLY this JSON structure:
 {
-  "title": "string",
-  "description": "string",
-  "difficulty": "beginner|intermediate|advanced",
-  "targetConcepts": ["Concept Name 1", "Concept Name 2"],
-  "tasks": ["Task 1 description", "Task 2 description", "Task 3 description"],
-  "expectedOutput": "what a successful submission should demonstrate"
+  "title": "Personalized ${topic} Practice",
+  "description": "Short description of what the student is practicing to overcome their weak areas.",
+  "difficulty": "${difficulty}",
+  "questions": [
+    {
+      "id": "q1",
+      "conceptId": ${conceptsList[0]?.id || 1},
+      "conceptTitle": "${conceptsList[0]?.title || 'Core Concept'}",
+      "type": "multiple_choice",
+      "question": "Question text here (can include code snippets)",
+      "options": [
+        { "value": "A", "label": "Option text" },
+        { "value": "B", "label": "Option text" },
+        { "value": "C", "label": "Option text" },
+        { "value": "D", "label": "Option text" }
+      ],
+      "correctAnswer": "A",
+      "explanation": "Clear explanation of the correct answer and reasoning.",
+      "hint": "Helpful guiding tip."
+    }
+  ]
 }`,
     },
   ]);
 
-  if (!data?.title || !data?.tasks || !Array.isArray(data.tasks)) {
-    throw new Error('AI_MALFORMED_RESPONSE: assignment fields missing');
+  if (!data?.questions || !Array.isArray(data.questions) || data.questions.length === 0) {
+    throw new Error('AI_MALFORMED_RESPONSE: assignment questions missing');
   }
 
-  return data;
+  // Normalize questions to guarantee 8 questions and valid concept mapping
+  const normalizedQuestions = data.questions.slice(0, 8).map((q, idx) => {
+    const matchedConcept = conceptsList.find((c) => c.id === q.conceptId || c.title === q.conceptTitle) || conceptsList[idx % conceptsList.length] || { id: idx + 1, title: topic };
+    return {
+      id: q.id || `q${idx + 1}`,
+      conceptId: matchedConcept.id,
+      conceptTitle: matchedConcept.title,
+      type: q.type || 'multiple_choice',
+      question: q.question || `Practice question on ${matchedConcept.title}`,
+      options: Array.isArray(q.options) && q.options.length >= 2 ? q.options : [
+        { value: 'A', label: 'Option A' },
+        { value: 'B', label: 'Option B' },
+        { value: 'C', label: 'Option C' },
+        { value: 'D', label: 'Option D' },
+      ],
+      correctAnswer: q.correctAnswer || 'A',
+      explanation: q.explanation || 'Review the concept material for more details.',
+      hint: q.hint || 'Think about the core rule of this concept.',
+    };
+  });
+
+  return {
+    topic,
+    title: data.title || `Personalized ${topic} Practice`,
+    description: data.description || `Targeted practice set for ${topic}`,
+    difficulty,
+    sessionMastery: overallMastery,
+    focusConcepts: snapshot.weakConcepts && snapshot.weakConcepts.length > 0 ? snapshot.weakConcepts : weakConcepts,
+    strongConcepts: snapshot.strongConcepts && snapshot.strongConcepts.length > 0 ? snapshot.strongConcepts : [],
+    questions: normalizedQuestions,
+  };
 }
 
 // ─── Scoring utility (shared with controllers) ────────────────────────────────

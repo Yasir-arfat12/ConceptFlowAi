@@ -13,6 +13,7 @@ const db = require('../config/db');
 const { completeConcept } = require('../services/learningService');
 const { evaluateCheckpoint: evaluatePrebuilt } = require('../data/prebuiltBinarySearch');
 const { evaluateCheckpoint: evaluateWithAI, scoringService, isConfigured: aiAvailable } = require('../services/aiService');
+const { recalculateSessionMastery, getSessionMasterySnapshot } = require('../services/masteryService');
 
 const PASS_SCORE = parseInt(process.env.CHECKPOINT_PASS_SCORE || '60', 10);
 const BINARY_SEARCH_KEYWORDS = ['binary search', 'binary-search', 'binarysearch'];
@@ -155,6 +156,21 @@ const submitAnswer = async (req, res) => {
 
     await client.query('COMMIT');
 
+    // If session just completed, trigger mastery recalculation and automatic assignment generation
+    let snapshot = null;
+    let assignmentData = null;
+    if (sessionCompleted) {
+      try {
+        await recalculateSessionMastery(concept.session_id, userId);
+        snapshot = await getSessionMasterySnapshot(concept.session_id, userId);
+        const { generateAndSaveAssignment } = require('./learningController');
+        const generated = await generateAndSaveAssignment(concept.session_id, userId, session.topic);
+        assignmentData = generated?.assignment || null;
+      } catch (genErr) {
+        console.warn('[Checkpoint] Auto assignment generation on completion:', genErr.message);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       data: {
@@ -169,6 +185,12 @@ const submitAnswer = async (req, res) => {
         nextConceptId: nextConcept?.id || null,
         nextConceptTitle: nextConcept?.title || null,
         attemptNumber,
+        sessionMastery: snapshot?.overallMastery,
+        weakConcepts: snapshot?.weakConcepts,
+        strongConcepts: snapshot?.strongConcepts,
+        assignmentAvailable: sessionCompleted,
+        assignmentTitle: assignmentData?.title || 'Personalized Practice Assignment',
+        sessionId: concept.session_id,
       },
     });
   } catch (err) {

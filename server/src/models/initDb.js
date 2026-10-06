@@ -206,13 +206,55 @@ const initDb = async (options = {}) => {
         id              SERIAL PRIMARY KEY,
         session_id      INTEGER       NOT NULL UNIQUE REFERENCES learning_sessions(id) ON DELETE CASCADE,
         assignment_data JSONB         NOT NULL,
+        status          VARCHAR(20)   NOT NULL DEFAULT 'ready',
         result          JSONB,
         score           INTEGER,
         completed_at    TIMESTAMPTZ,
-        created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+        created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
       )
     `);
+    await client.query(`ALTER TABLE assignments ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'ready'`);
+    await client.query(`ALTER TABLE assignments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_assignments_session ON assignments(session_id)`);
+
+    // ASSIGNMENT ATTEMPTS
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS assignment_attempts (
+        id                  SERIAL PRIMARY KEY,
+        user_id             INTEGER       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        session_id          INTEGER       NOT NULL REFERENCES learning_sessions(id) ON DELETE CASCADE,
+        assignment_id       INTEGER       REFERENCES assignments(id) ON DELETE CASCADE,
+        score               INTEGER       NOT NULL DEFAULT 0,
+        total_questions     INTEGER       NOT NULL DEFAULT 0,
+        correct_answers     INTEGER       NOT NULL DEFAULT 0,
+        percentage          INTEGER       NOT NULL DEFAULT 0,
+        status              VARCHAR(20)   NOT NULL DEFAULT 'in_progress',
+        completed_at        TIMESTAMPTZ,
+        created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+        updated_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_assignment_attempts_user ON assignment_attempts(user_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_assignment_attempts_session ON assignment_attempts(session_id)`);
+
+    // ASSIGNMENT ATTEMPT ANSWERS
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS assignment_attempt_answers (
+        id                  SERIAL PRIMARY KEY,
+        attempt_id          INTEGER       NOT NULL REFERENCES assignment_attempts(id) ON DELETE CASCADE,
+        question_id         VARCHAR(100)  NOT NULL,
+        concept_id          INTEGER       REFERENCES learning_concepts(id) ON DELETE SET NULL,
+        selected_answer     TEXT,
+        correct_answer      TEXT,
+        is_correct          BOOLEAN       NOT NULL DEFAULT FALSE,
+        explanation         TEXT,
+        feedback            TEXT,
+        created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_assignment_answers_attempt ON assignment_attempt_answers(attempt_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_assignment_answers_concept ON assignment_attempt_answers(concept_id)`);
 
     // Seed default demo user if not present
     const demoCheck = await client.query('SELECT id FROM users WHERE email = $1', ['demo@conceptflow.ai']);
@@ -229,7 +271,8 @@ const initDb = async (options = {}) => {
     await client.query('COMMIT');
     console.log('✅ ConceptFlow database tables created/verified successfully.');
     console.log('   Tables: users, learning_sessions, learning_concepts, checkpoints,');
-    console.log('           checkpoint_responses, doubt_messages, quizzes, assignments');
+    console.log('           checkpoint_responses, doubt_messages, quizzes, quiz_attempts,');
+    console.log('           assignments, assignment_attempts, assignment_attempt_answers');
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('❌ Database initialization failed:', err.message);

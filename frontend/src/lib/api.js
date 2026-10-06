@@ -212,16 +212,28 @@ export const learningApi = {
   async getAssignments() {
     return apiRequest('/api/learning/assignments');
   },
+  async getLatestAssignment() {
+    return apiRequest('/api/learning/assignments/latest');
+  },
   async createAssignment(sessionId) {
     return apiRequest(`/api/learning/${sessionId}/assignment`, { method: 'POST' });
   },
   async getAssignment(sessionId) {
     return apiRequest(`/api/learning/${sessionId}/assignment`);
   },
-  async submitAssignment(sessionId, solution) {
+  async startAssignmentAttempt(sessionId) {
+    return apiRequest(`/api/learning/${sessionId}/assignment/attempt`, { method: 'POST' });
+  },
+  async submitAssignmentAnswer(sessionId, questionId, selectedAnswer) {
+    return apiRequest(`/api/learning/${sessionId}/assignment/answer`, {
+      method: 'POST',
+      body: JSON.stringify({ questionId, selectedAnswer }),
+    });
+  },
+  async submitAssignment(sessionId, payload = {}) {
     return apiRequest(`/api/learning/${sessionId}/assignment/submit`, {
       method: 'POST',
-      body: JSON.stringify({ solution }),
+      body: JSON.stringify(payload),
     });
   },
 

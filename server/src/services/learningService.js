@@ -31,6 +31,55 @@ function calculateProgress(concepts) {
   return Math.round((completed / concepts.length) * 100);
 }
 
+function createTopicFallback(topic) {
+  const cleanTitle = (topic || 'Fundamentals').replace(/^teach me\s+/i, '').trim();
+  return {
+    topic: cleanTitle,
+    concepts: [
+      {
+        title: `Introduction to ${cleanTitle}`,
+        content: `${cleanTitle} is a foundational concept in software engineering and computer science. Understanding its core principles, terminology, and practical applications allows you to build robust, scalable solutions.`,
+        examples: `// Core principles of ${cleanTitle}\nconsole.log('Mastering ${cleanTitle}');`,
+        keyTakeaways: `• Foundational principles and terminology\n• Why ${cleanTitle} matters in modern systems\n• Real-world applications`,
+        checkpoint: {
+          question: `What is the primary purpose and advantage of using ${cleanTitle}?`,
+          expectedKeywords: ['efficiency', 'solve', 'advantage', 'fundamental', 'application', 'structure', cleanTitle.toLowerCase().split(' ')[0]],
+        },
+      },
+      {
+        title: `${cleanTitle} Core Mechanisms and Logic`,
+        content: `Deep dive into the operational mechanics of ${cleanTitle}. We analyze how data flows, how state transitions are maintained, and how invariants are preserved throughout execution.`,
+        examples: `// Operational flow\nfunction analyzeMechanics() {\n  // Invariant verification\n}`,
+        keyTakeaways: `• State transitions and invariant preservation\n• Algorithmic steps\n• Error boundaries and validation`,
+        checkpoint: {
+          question: `How does ${cleanTitle} maintain consistency and handle state transitions?`,
+          expectedKeywords: ['state', 'transition', 'invariant', 'step', 'consistency', 'process'],
+        },
+      },
+      {
+        title: `Implementation and Edge Cases in ${cleanTitle}`,
+        content: `Practical implementation details, boundary conditions, edge cases, and best practices. Handling null/empty inputs, large inputs, and preventing resource leaks.`,
+        examples: `// Robust implementation with boundary checks\nif (!input) return default_state;`,
+        keyTakeaways: `• Boundary condition analysis\n• Handling null, empty, or overflow states\n• Production-grade implementations`,
+        checkpoint: {
+          question: `What critical boundary or edge cases must be checked when implementing ${cleanTitle}?`,
+          expectedKeywords: ['boundary', 'edge', 'empty', 'null', 'overflow', 'case', 'condition'],
+        },
+      },
+      {
+        title: `Time/Space Complexity and Advanced Applications`,
+        content: `Analyzing computational complexity: best, average, and worst-case time and space complexity. Real-world architectural integrations and system design patterns.`,
+        examples: `Time Complexity: O(n) or O(log n)\nSpace Complexity: O(1) auxiliary`,
+        keyTakeaways: `• Complexity trade-offs\n• Scaling characteristics\n• Integration with larger architectures`,
+        checkpoint: {
+          question: `What are the computational complexity characteristics and trade-offs of ${cleanTitle}?`,
+          expectedKeywords: ['complexity', 'time', 'space', 'scale', 'trade-off', 'performance', 'O('],
+        },
+      },
+    ],
+  };
+}
+
 /**
  * Creates a learning session in a transaction.
  * Returns the full session + concepts structure needed by the frontend.
@@ -48,10 +97,16 @@ async function createLearningSession(userId, topic) {
       concepts: binarySearchData.concepts,
     };
   } else if (aiAvailable) {
-    console.log(`[Learning] Generating AI learning path for: "${topic}"`);
-    learningData = await generateLearningPath(topic);
+    try {
+      console.log(`[Learning] Generating AI learning path for: "${topic}"`);
+      learningData = await generateLearningPath(topic);
+    } catch (aiErr) {
+      console.warn(`[Learning] AI generation failed (${aiErr.message}), using fallback for: "${topic}"`);
+      learningData = createTopicFallback(topic);
+    }
   } else {
-    throw new Error('AI_NOT_CONFIGURED: Cannot generate learning path for non-prebuilt topics without an AI API key.');
+    console.log(`[Learning] AI unconfigured, using fallback for: "${topic}"`);
+    learningData = createTopicFallback(topic);
   }
 
   const client = await db.pool.connect();

@@ -33,7 +33,7 @@ export default function DoubtDrawer({ open, onClose, subtitle, greeting, context
     setMessages((m) => [...m, { role: 'user', text: q }]);
     if (onSaveToDoubts && !doubtId.current) {
       doubtId.current = makeId('d');
-      dispatch({ type: 'doubt/add', doubt: { id: doubtId.current, title: q, details: context.title ? `Asked while studying: ${context.title}` : '', author: state.user.name, at: new Date().toISOString(), resolved: false, likes: 0, liked: false, replies: [] } });
+      dispatch({ type: 'doubt/add', doubt: { id: doubtId.current, title: q, details: context.title ? `Asked while studying: ${context.title}` : '', author: state?.user?.name || 'Learner', at: new Date().toISOString(), resolved: false, likes: 0, liked: false, replies: [] } });
     }
     abort.current = new AbortController();
     try {

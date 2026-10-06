@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BrainCircuit, CheckCircle2, Lock, PlayCircle, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { BrainCircuit, CheckCircle2, Lock, PlayCircle, ArrowLeft, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { useApp } from '../store/AppStore';
 import { learningApi } from '../lib/api';
 import DoubtDrawer from '../components/DoubtDrawer';
@@ -14,22 +14,14 @@ function Inline({ text }) {
   });
 }
 
-<<<<<<< HEAD
 /**
  * Learning session driven fully by PostgreSQL and Express backend APIs.
  * No localStorage persistence of learning data.
  * Concept progression and checkpoint scoring are evaluated and saved by the backend.
  */
-export default function Session({ params, goBack }) {
+export default function Session({ params, goBack, navigateTo }) {
   const sessionIdParam = params?.get('sessionId');
   const topicParam = params?.get('topic');
-
-=======
-/** Learning session driven by the requested topic. Progress persists, so learners resume where they stopped. */
-export default function Session({ params, goBack, navigateTo }) {
-  const topic = params?.get('topic') || 'Binary Search';
-  const cur = useMemo(() => getCurriculum(topic), [topic]);
->>>>>>> 3b1961434419264a02cc7ee59af00f1510921fc9
   const { state, dispatch } = useApp();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -47,7 +39,6 @@ export default function Session({ params, goBack, navigateTo }) {
   useEffect(() => {
     let active = true;
 
-<<<<<<< HEAD
     async function initSession() {
       try {
         setLoading(true);
@@ -192,16 +183,6 @@ export default function Session({ params, goBack, navigateTo }) {
       });
     } finally {
       setSubmitting(false);
-=======
-  const submit = () => setResult(gradeAnswer(answer, concept.checkpoint));
-  const advance = () => {
-    dispatch({ type: 'progress/set', key: cur.key, title: cur.title, total, done: step + 1 });
-    if (step + 1 < total) { 
-      setStep(step + 1); setAnswer(''); setResult(null); 
-    } else {
-      if (navigateTo) navigateTo('dashboard/tutor');
-      else if (goBack) goBack();
->>>>>>> 3b1961434419264a02cc7ee59af00f1510921fc9
     }
   };
 
@@ -390,11 +371,11 @@ export default function Session({ params, goBack, navigateTo }) {
             )}
 
             {/* Key Takeaways */}
-            {currentConcept?.key_takeaways && (
+            {(currentConcept?.key_takeaways || currentConcept?.keyTakeaways) && (
               <div className="mt-8 p-4 rounded-xl border border-white/5 bg-[#121212]/50">
                 <h4 className="text-[12px] font-semibold text-white/50 uppercase tracking-widest mb-2">Key Takeaways</h4>
                 <div className="text-sm text-white/80 whitespace-pre-line leading-relaxed">
-                  {currentConcept.key_takeaways}
+                  {currentConcept.key_takeaways || currentConcept.keyTakeaways}
                 </div>
               </div>
             )}
@@ -493,17 +474,51 @@ export default function Session({ params, goBack, navigateTo }) {
                       </span>
                     </div>
                     <p className="text-sm text-emerald-100/70 leading-relaxed mb-4">{result.feedback}</p>
-                    {isFinished && (
-                      <p className="text-sm text-emerald-200 font-medium mb-4">
-                        Congratulations! You have completed every concept in {session.topic}.
-                      </p>
+                    {isFinished ? (
+                      <div className="mt-4 p-4 rounded-xl bg-[#0A0E14] border border-[#22D3EE]/20 space-y-4">
+                        <div className="flex items-center gap-2 text-[#22D3EE] font-semibold text-sm">
+                          <BrainCircuit className="w-4 h-4" />
+                          <span>Session Complete! Personalized Assignment Ready</span>
+                        </div>
+                        <p className="text-xs text-white/70 leading-relaxed">
+                          We've analyzed your checkpoint scores across all concepts in <strong className="text-white">{session.topic}</strong> and generated a targeted 8-question assignment to strengthen your weak areas.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3 pt-1">
+                          <button
+                            onClick={() => {
+                              if (navigateTo) navigateTo(`dashboard/assignments?sessionId=${session.id}`);
+                              else if (goBack) goBack();
+                            }}
+                            className="px-5 py-2.5 bg-[#22D3EE] hover:bg-[#22D3EE]/90 text-black font-semibold text-xs rounded-lg transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                          >
+                            <Sparkles className="w-4 h-4" />
+                            Start Personalized Assignment
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (navigateTo) navigateTo(`dashboard/quiz?sessionId=${session.id}`);
+                              else if (goBack) goBack();
+                            }}
+                            className="px-4 py-2 bg-white/10 hover:bg-white/15 text-white font-medium text-xs rounded-lg transition-colors cursor-pointer"
+                          >
+                            Take Quiz
+                          </button>
+                          <button
+                            onClick={() => (goBack ? goBack() : navigateTo ? navigateTo('dashboard') : null)}
+                            className="px-4 py-2 text-white/50 hover:text-white text-xs transition-colors cursor-pointer"
+                          >
+                            Dashboard
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleAdvance}
+                        className="px-5 py-2 bg-emerald-500 text-black font-medium text-sm rounded-md hover:bg-emerald-400 transition-colors cursor-pointer"
+                      >
+                        Continue to Next Concept
+                      </button>
                     )}
-                    <button
-                      onClick={handleAdvance}
-                      className="px-5 py-2 bg-emerald-500 text-black font-medium text-sm rounded-md hover:bg-emerald-400 transition-colors cursor-pointer"
-                    >
-                      {isFinished ? 'Finish Session' : 'Continue to Next Concept'}
-                    </button>
                   </div>
                 </div>
               )}
@@ -516,7 +531,7 @@ export default function Session({ params, goBack, navigateTo }) {
       <DoubtDrawer
         open={doubtOpen}
         onClose={() => setDoubtOpen(false)}
-        subtitle={`Doubt Resolution · paused at Concept ${currentConcept?.order_index || currentIndex + 1}`}
+        subtitle={`Doubt Resolution · paused at Concept ${currentConcept?.order_index || 1}`}
         context={{ title: currentConcept?.title, topic: session.topic }}
       />
     </div>

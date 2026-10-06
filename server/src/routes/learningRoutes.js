@@ -11,6 +11,9 @@ const {
   createAssignment,
   getAssignment,
   submitAssignment,
+  submitAssignmentAnswer,
+  startOrResumeAssignmentAttempt,
+  getLatestAssignment,
   getUserAssignments,
   getUserQuizzes,
 } = require('../controllers/learningController');
@@ -27,6 +30,7 @@ router.post('/tutor', handleTutorQuestion);
 router.post('/start',                           authenticate, startLearning);
 router.get('/',                                 authenticate, getUserSessions);
 router.get('/sessions',                         authenticate, getUserSessions);
+router.get('/assignments/latest',               authenticate, getLatestAssignment);
 router.get('/assignments',                      authenticate, getUserAssignments);
 router.get('/quizzes',                          authenticate, getUserQuizzes);
 
@@ -47,8 +51,11 @@ router.get('/:sessionId/quiz',         authenticate, getQuiz);
 router.post('/:sessionId/quiz/submit', authenticate, submitQuiz);
 
 // Assignment
-router.post('/:sessionId/assignment',        authenticate, createAssignment);
-router.get('/:sessionId/assignment',         authenticate, getAssignment);
-router.post('/:sessionId/assignment/submit', authenticate, submitAssignment);
+router.post('/:sessionId/assignment',         authenticate, createAssignment);
+router.get('/:sessionId/assignment',          authenticate, getAssignment);
+router.post('/:sessionId/assignment/attempt', authenticate, startOrResumeAssignmentAttempt);
+router.post('/:sessionId/assignment/answer',  authenticate, submitAssignmentAnswer);
+router.post('/:sessionId/assignment/submit',  authenticate, submitAssignment);
 
 module.exports = router;
+

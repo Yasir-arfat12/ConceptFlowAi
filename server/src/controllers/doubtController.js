@@ -34,10 +34,11 @@ I'll do my best to explain using the current concept as context.`;
 const askDoubt = async (req, res) => {
   try {
     const { sessionId, conceptId } = req.params;
-    const { question } = req.body;
+    const rawQuestion = req.body.question || req.body.message;
+    const question = typeof rawQuestion === 'string' ? rawQuestion.trim() : '';
     const userId = req.user.id;
 
-    if (!question || !question.trim()) {
+    if (!question) {
       return res.status(422).json({
         success: false,
         error: { code: 'VALIDATION_ERROR', message: 'Question is required.' },

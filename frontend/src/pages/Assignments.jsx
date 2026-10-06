@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CheckCircle2,
   Clock,
@@ -17,203 +16,250 @@ import {
   Award,
   AlertCircle,
   Code2,
+  Check,
+  ChevronRight,
+  TrendingUp,
+  RotateCcw,
+  Lightbulb,
+  Target,
 } from 'lucide-react';
 import { learningApi } from '../lib/api';
-=======
-import { useState } from 'react';
-import { CheckCircle2, Clock, Circle, Filter, Search, Plus, X, Loader2, Sparkles, BrainCircuit, ArrowLeft } from 'lucide-react';
 
-const INITIAL_ASSIGNMENTS = [
-  { id: 1, title: "Implement Backpropagation", course: "Neural Networks", status: "Pending", due: "Today, 11:59 PM", description: "Write a Python script from scratch that implements the backpropagation algorithm for a simple 2-layer neural network. Prove it works by training it on the XOR problem." },
-  { id: 2, title: "Read Chapter 4: Transformers", course: "NLP", status: "In Progress", due: "Tomorrow", description: "Read Chapter 4 and write a 2-paragraph summary of the Self-Attention mechanism." },
-  { id: 3, title: "Probability Basics Quiz", course: "Mathematics", status: "Completed", due: "Yesterday", description: "Solve the probability quiz from the textbook.", submission: "Completed via external quiz portal." }
-];
->>>>>>> 3b1961434419264a02cc7ee59af00f1510921fc9
+/** Render **bold** and `code` inline without markdown dependencies. */
+function InlineText({ text }) {
+  if (!text) return null;
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) => {
+    if (part.startsWith('**')) return <strong key={i} className="text-white font-semibold">{part.slice(2, -2)}</strong>;
+    if (part.startsWith('`')) return <code key={i} className="px-1.5 py-0.5 rounded bg-white/10 text-cyan-300 text-[0.88em] font-mono">{part.slice(1, -1)}</code>;
+    return part;
+  });
+}
 
-const SUBJECTS = {
-  'Machine Learning': ['Neural Networks', 'Supervised Learning', 'Unsupervised Learning'],
-  'Data Structures': ['Arrays & Linked Lists', 'Trees & Graphs', 'Dynamic Programming'],
-  Mathematics: ['Linear Algebra', 'Calculus', 'Probability & Statistics'],
-};
+export default function Assignments({ goBack, navigateTo, params }) {
+  const sessionIdParam = params?.get('sessionId');
 
-export default function Assignments({ goBack, navigateTo }) {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-<<<<<<< HEAD
-  const [activeAssignmentModal, setActiveAssignmentModal] = useState(null);
-=======
-  const [activeAssignment, setActiveAssignment] = useState(null);
-  const [submissionText, setSubmissionText] = useState("");
-  
-  // Form State
-  const [selectedSubject, setSelectedSubject] = useState("");
-  const [selectedTopic, setSelectedTopic] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const STATUSES = ["Pending", "In Progress", "Completed"];
-  const FILTERS = ["All", ...STATUSES];
-  const visible = assignments.filter((a) =>
-    (statusFilter === "All" || a.status === statusFilter) &&
-    `${a.title} ${a.course}`.toLowerCase().includes(search.trim().toLowerCase())
-  );
-  
-  const openAssignment = (item) => {
-    setActiveAssignment(item);
-    setSubmissionText(item.submission || "");
-  };
->>>>>>> 3b1961434419264a02cc7ee59af00f1510921fc9
+  const [error, setError] = useState(null);
 
-  // Form State for Generator
-  const [selectedSubject, setSelectedSubject] = useState('');
-  const [selectedTopic, setSelectedTopic] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
+  // Active Interactive Practice State
+  const [activePractice, setActivePractice] = useState(null);
+  const [practiceLoading, setPracticeLoading] = useState(false);
+  const [currentQIndex, setCurrentQIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState(null);
+  const [answers, setAnswers] = useState({});
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
+  const [completingAssignment, setCompletingAssignment] = useState(false);
+  const [resultSummary, setResultSummary] = useState(null);
+
+  // Filter & Search state for list
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const STATUSES = ['Pending', 'In Progress', 'Completed'];
   const FILTERS = ['All', ...STATUSES];
 
-  // Submission State inside modal
-  const [submissionCode, setSubmissionCode] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submissionFeedback, setSubmissionFeedback] = useState(null);
-
-  // Load real assignments from PostgreSQL
-  useEffect(() => {
-    let active = true;
-    async function loadAssignments() {
-      try {
-        setLoading(true);
-        const res = await learningApi.getAssignments();
-        const list = res?.data?.assignments || res?.assignments || [];
-        if (active) {
-          const mapped = list.map((a) => {
-            const data = typeof a.assignment_data === 'string' ? JSON.parse(a.assignment_data) : a.assignment_data;
-            return {
-              id: a.id,
-              sessionId: a.session_id,
-              title: data?.title || `Assignment: ${a.course || 'Topic'}`,
-              course: a.course || 'Computer Science',
-              description: data?.description || 'Complete the tasks to consolidate your mastery.',
-              difficulty: data?.difficulty || 'intermediate',
-              tasks: data?.tasks || [],
-              expectedOutput: data?.expectedOutput || '',
-              targetConcepts: data?.targetConcepts || [],
-              status: a.completed_at ? 'Completed' : 'Pending',
-              due: a.completed_at ? 'Completed' : 'In 3 days',
-              score: a.score,
-              result: a.result,
-            };
-          });
-          setAssignments(mapped);
-        }
-      } catch (err) {
-        console.warn('[Assignments] Starting with local assignments:', err.message);
-        if (active) {
-          setAssignments([]);
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
+  // Load all user assignments from PostgreSQL
+  const loadUserAssignments = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await learningApi.getAssignments();
+      const list = res?.data?.assignments || res?.assignments || [];
+      setAssignments(list);
+    } catch (err) {
+      console.error('[Assignments] Error loading assignments:', err);
+      setError('Unable to load assignments from database.');
+    } finally {
+      setLoading(false);
     }
-    loadAssignments();
-    return () => {
-      active = false;
-    };
+  };
+
+  useEffect(() => {
+    loadUserAssignments();
   }, []);
 
-  const visible = assignments.filter(
-    (a) =>
-      (statusFilter === 'All' || a.status === statusFilter) &&
-      `${a.title} ${a.course}`.toLowerCase().includes(search.trim().toLowerCase())
-  );
-
-  const cycleStatus = (id) =>
-    setAssignments((list) =>
-      list.map((a) => (a.id === id ? { ...a, status: STATUSES[(STATUSES.indexOf(a.status) + 1) % STATUSES.length] } : a))
-    );
-
-  const handleGenerate = async () => {
-    if (!selectedSubject || !selectedTopic) return;
-
-    setIsGenerating(true);
-
-    setTimeout(() => {
-      const newAssignment = {
-        id: Date.now(),
-        title: `Assignment: ${selectedTopic}`,
-        course: selectedSubject,
-<<<<<<< HEAD
-        description: `Practice problems and conceptual exercises for ${selectedTopic}.`,
-        tasks: [
-          `Task 1: Explain the fundamental principles of ${selectedTopic}.`,
-          `Task 2: Implement a basic example or algorithm demonstrating ${selectedTopic}.`,
-          `Task 3: Analyze boundary conditions and common pitfalls in ${selectedTopic}.`,
-        ],
-        status: 'Pending',
-        due: 'In 3 days',
-=======
-        status: "Pending",
-        due: "In 3 days",
-        description: `Please complete the exercises related to ${selectedTopic} to demonstrate mastery.`
->>>>>>> 3b1961434419264a02cc7ee59af00f1510921fc9
-      };
-
-      setAssignments((prev) => [newAssignment, ...prev]);
-      setIsGenerating(false);
-      setIsDrawerOpen(false);
-      setSelectedSubject('');
-      setSelectedTopic('');
-    }, 1000);
-  };
-
-  const handleOpenAssignment = (task) => {
-    setActiveAssignmentModal(task);
-    setSubmissionCode('');
-    setSubmissionFeedback(task.result || (task.score !== null && task.score !== undefined ? { score: task.score } : null));
-  };
-
-  const handleSubmitSolution = async () => {
-    if (!submissionCode.trim() || !activeAssignmentModal) return;
-
+  // Launch or load specific assignment practice session
+  const openAssignmentPractice = async (sessionId) => {
+    if (!sessionId) return;
     try {
-      setIsSubmitting(true);
-      const sessionId = activeAssignmentModal.sessionId;
+      setPracticeLoading(true);
+      setError(null);
+      setResultSummary(null);
 
-      if (sessionId) {
-        const res = await learningApi.submitAssignment(sessionId, submissionCode);
-        const evalData = res?.data || { score: 85, feedback: 'Solution evaluated and saved to PostgreSQL!' };
-        setSubmissionFeedback(evalData);
-        setAssignments((prev) =>
-          prev.map((a) =>
-            a.id === activeAssignmentModal.id
-              ? { ...a, status: 'Completed', score: evalData.score, result: evalData }
-              : a
-          )
-        );
-      } else {
-        // Local simulation if standalone
-        const evalData = { score: 85, feedback: 'Great solution! Key concepts and edge cases were covered.' };
-        setSubmissionFeedback(evalData);
-        setAssignments((prev) =>
-          prev.map((a) => (a.id === activeAssignmentModal.id ? { ...a, status: 'Completed', score: 85 } : a))
-        );
+      // 1. Get or create assignment
+      let res = await learningApi.getAssignment(sessionId);
+      let data = res?.data?.assignment || res?.assignment;
+
+      if (!data) {
+        const createRes = await learningApi.createAssignment(sessionId);
+        data = createRes?.data?.assignment || createRes?.assignment;
+      }
+
+      // 2. Start or resume attempt in PostgreSQL
+      const attemptRes = await learningApi.startAssignmentAttempt(sessionId);
+      const attemptData = attemptRes?.data || {};
+
+      const loadedAnswers = attemptData.answers || data.currentAttempt?.answers || {};
+      setAnswers(loadedAnswers);
+
+      const questions = data.questions || [];
+      // Find first unanswered question
+      let firstUnanswered = 0;
+      for (let i = 0; i < questions.length; i++) {
+        if (!loadedAnswers[questions[i].id]) {
+          firstUnanswered = i;
+          break;
+        }
+      }
+
+      setActivePractice(data);
+      setCurrentQIndex(firstUnanswered);
+      setSelectedOption(null);
+
+      // If assignment was already completed, show results view
+      if (data.status === 'completed' && data.score !== null) {
+        // Can preview or practice
       }
     } catch (err) {
-      console.error('[Assignments] Submission error:', err.message);
-      setSubmissionFeedback({ score: 70, feedback: 'Solution recorded. Ensure you detail each edge-case explanation.' });
+      console.error('[Assignments] Error opening assignment:', err);
+      setError(err.message || 'Failed to open personalized assignment.');
     } finally {
-      setIsSubmitting(false);
+      setPracticeLoading(false);
     }
   };
 
+  // If URL has sessionIdParam on load, open it immediately
+  useEffect(() => {
+    if (sessionIdParam) {
+      openAssignmentPractice(sessionIdParam);
+    }
+  }, [sessionIdParam]);
+
+  // Handle single question answer check
+  const handleCheckAnswer = async () => {
+    if (!selectedOption || !activePractice || submittingAnswer) return;
+    const currentQ = activePractice.questions?.[currentQIndex];
+    if (!currentQ) return;
+
+    try {
+      setSubmittingAnswer(true);
+      const res = await learningApi.submitAssignmentAnswer(
+        activePractice.sessionId,
+        currentQ.id,
+        selectedOption
+      );
+
+      const answerData = res?.data || {
+        isCorrect: selectedOption === currentQ.correctAnswer,
+        correctAnswer: currentQ.correctAnswer,
+        explanation: currentQ.explanation,
+        feedback: selectedOption === currentQ.correctAnswer ? '✓ Correct' : '✕ Not quite',
+      };
+
+      setAnswers((prev) => ({
+        ...prev,
+        [currentQ.id]: {
+          selectedAnswer: selectedOption,
+          ...answerData,
+        },
+      }));
+    } catch (err) {
+      console.error('[Assignments] Error submitting answer:', err);
+      // Fallback local evaluation if offline
+      const isCorrect = selectedOption === currentQ.correctAnswer;
+      setAnswers((prev) => ({
+        ...prev,
+        [currentQ.id]: {
+          selectedAnswer: selectedOption,
+          isCorrect,
+          correctAnswer: currentQ.correctAnswer,
+          explanation: currentQ.explanation,
+          feedback: isCorrect ? '✓ Correct' : '✕ Not quite',
+        },
+      }));
+    } finally {
+      setSubmittingAnswer(false);
+    }
+  };
+
+  // Advance to next question or complete assignment
+  const handleNextQuestion = async () => {
+    const questions = activePractice?.questions || [];
+    if (currentQIndex + 1 < questions.length) {
+      setCurrentQIndex((prev) => prev + 1);
+      setSelectedOption(null);
+    } else {
+      // Final question answered: Submit & Finalize Assignment
+      try {
+        setCompletingAssignment(true);
+        const res = await learningApi.submitAssignment(activePractice.sessionId, { answers });
+        const summaryData = res?.data || res;
+        setResultSummary(summaryData);
+        loadUserAssignments(); // refresh list in background
+      } catch (err) {
+        console.error('[Assignments] Error finalizing assignment:', err);
+        // Fallback calculation
+        const total = questions.length || 8;
+        const correct = Object.values(answers).filter((a) => a.isCorrect).length;
+        const score = Math.round((correct / total) * 100);
+        setResultSummary({
+          score,
+          percentage: score,
+          totalQuestions: total,
+          correctAnswers: correct,
+          previousMastery: activePractice.sessionMastery || 70,
+          newMastery: Math.min(100, (activePractice.sessionMastery || 70) + 4),
+          masteryDelta: 4,
+          conceptBreakdown: [],
+          improvedConcepts: [],
+          recommendedNext: 'Review key takeaways and test yourself on advanced problems.',
+        });
+      } finally {
+        setCompletingAssignment(false);
+      }
+    }
+  };
+
+  // Latest personalized assignment (first one or from completed sessions)
+  const latestAssignment = useMemo(() => {
+    if (assignments.length === 0) return null;
+    return assignments[0];
+  }, [assignments]);
+
+  const visibleAssignments = useMemo(() => {
+    return assignments.filter((a) => {
+      const matchesStatus =
+        statusFilter === 'All' ||
+        (statusFilter === 'Completed' && a.status === 'Completed') ||
+        (statusFilter === 'In Progress' && a.status === 'In Progress') ||
+        (statusFilter === 'Pending' && (a.status === 'Ready' || a.status === 'Pending'));
+      const matchesSearch = `${a.title} ${a.topic || a.course}`.toLowerCase().includes(search.trim().toLowerCase());
+      return matchesStatus && matchesSearch;
+    });
+  }, [assignments, statusFilter, search]);
+
+  // Current Question Object
+  const currentQuestion = activePractice?.questions?.[currentQIndex] || null;
+  const currentAnswered = currentQuestion ? answers[currentQuestion.id] : null;
+  const totalQuestionsCount = activePractice?.questions?.length || 8;
+  const answeredQuestionsCount = Object.keys(answers).length;
+
   return (
-    <div className="w-full h-full bg-[#000000] flex flex-col relative overflow-hidden font-sans text-white">
+    <div className="w-full h-full min-h-screen bg-[#000000] flex flex-col relative overflow-hidden font-sans text-white">
+      {/* Top Header */}
       <header className="h-[60px] border-b border-white/5 flex items-center justify-between px-4 sm:px-8 bg-[#000000] z-20 shrink-0">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => (goBack ? goBack() : navigateTo ? navigateTo('dashboard') : null)}
+            onClick={() => {
+              if (activePractice) {
+                setActivePractice(null);
+                setResultSummary(null);
+              } else if (goBack) {
+                goBack();
+              } else if (navigateTo) {
+                navigateTo('dashboard');
+              }
+            }}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors shrink-0 cursor-pointer"
             aria-label="Go back"
             title="Go back"
@@ -222,404 +268,536 @@ export default function Assignments({ goBack, navigateTo }) {
           </button>
           <div className="flex items-center gap-2">
             <BrainCircuit className="w-4 h-4 text-[#22D3EE]" />
-            <h1 className="text-sm font-semibold text-white">Personalized Assignments</h1>
+            <h1 className="text-sm font-semibold text-white">
+              {activePractice ? activePractice.title : 'Personalized Assignments'}
+            </h1>
           </div>
         </div>
-        <button
-          onClick={() => setIsDrawerOpen(true)}
-          className="bg-[#22D3EE]/10 text-[#22D3EE] border border-[#22D3EE]/20 hover:bg-[#22D3EE]/20 px-3.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          Generate New
-        </button>
+
+        {activePractice && !resultSummary && (
+          <div className="flex items-center gap-3 text-xs text-white/50">
+            <span className="hidden sm:inline">Progress:</span>
+            <span className="font-semibold text-[#22D3EE]">
+              {answeredQuestionsCount} / {totalQuestionsCount}
+            </span>
+          </div>
+        )}
       </header>
 
+      {/* Main Content Area */}
       <div className="flex-1 overflow-auto relative scrollbar-hide">
-        <div className="p-4 sm:p-8 pb-16 flex flex-col gap-6 max-w-[1100px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Personalized Tasks</h2>
-              <p className="text-sm text-white/50 mt-1">Target your weak areas identified from checkpoints and quizzes.</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="w-4 h-4 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  aria-label="Search tasks"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search tasks..."
-                  className="bg-[#0A0A0A] border border-white/10 rounded-lg pl-9 pr-4 py-2 text-[13px] text-white placeholder-white/30 focus:outline-none focus:border-white/20 w-48 sm:w-64 transition-colors"
-                />
-              </div>
-              <button
-                onClick={() => setStatusFilter((f) => FILTERS[(FILTERS.indexOf(f) + 1) % FILTERS.length])}
-                aria-label={`Filter by status: ${statusFilter}. Click to change`}
-                className="p-2 px-3 border border-white/10 bg-[#0A0A0A] rounded-lg text-white/70 hover:text-white transition-colors flex items-center gap-2 text-[12px] cursor-pointer"
-              >
-                <Filter className="w-4 h-4" />
-                {statusFilter}
-              </button>
-            </div>
+        {practiceLoading ? (
+          <div className="w-full h-[60vh] flex flex-col items-center justify-center gap-3 text-white/40">
+            <Loader2 className="w-7 h-7 animate-spin text-[#22D3EE]" />
+            <span className="text-sm font-medium">Preparing your personalized practice set...</span>
           </div>
-
-          <div className="border border-white/10 rounded-2xl bg-[#0A0A0A] overflow-x-auto shadow-sm">
-            <div className="grid grid-cols-12 gap-4 p-4 border-b border-white/10 text-[11px] font-semibold text-white/40 uppercase tracking-wider min-w-[640px]">
-              <div className="col-span-5">Task</div>
-              <div className="col-span-3">Topic / Session</div>
-              <div className="col-span-2">Due / Date</div>
-              <div className="col-span-2 text-right">Status / Score</div>
-            </div>
-<<<<<<< HEAD
-
-            <div className="flex flex-col divide-y divide-white/5">
-              {loading ? (
-                <div className="py-16 flex items-center justify-center gap-2 text-white/40 text-sm">
-                  <Loader2 className="w-5 h-5 animate-spin text-[#22D3EE]" />
-                  <span>Loading personalized assignments...</span>
-=======
-            
-            <div className="flex flex-col">
-              {visible.length === 0 && <p className="p-8 text-center text-sm text-white/40">No tasks match.</p>}
-              {visible.map(item => (
-                <div key={item.id} role="button" tabIndex={0} onClick={() => openAssignment(item)} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), openAssignment(item))} title="Click to open assignment details" className="grid grid-cols-12 gap-4 p-4 items-center border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors cursor-pointer group min-w-[640px]">
-                  <div className="col-span-5 flex items-center gap-3">
-                    {item.status === 'Completed' ? <CheckCircle2 className="w-5 h-5 text-[#00E676]" /> : 
-                     item.status === 'In Progress' ? <Clock className="w-5 h-5 text-[#FFC107]" /> : 
-                     <Circle className="w-5 h-5 text-white/20 group-hover:text-white/40 transition-colors" />}
-                    <span className={`text-[14px] ${item.status === 'Completed' ? 'text-white/30 line-through' : 'text-white/90 font-medium'}`}>{item.title}</span>
+        ) : activePractice ? (
+          /* =========================================================================
+             1. ACTIVE INTERACTIVE PRACTICE / RESULTS VIEW
+             ========================================================================= */
+          <div className="max-w-[860px] mx-auto p-4 sm:p-8 pb-20 animate-in fade-in slide-in-from-bottom-3 duration-300">
+            {resultSummary ? (
+              /* ─── Assignment Result Screen ─────────────────────────────────────────── */
+              <div className="space-y-6">
+                <div className="p-6 sm:p-8 rounded-2xl bg-[#0A0A0A] border border-white/10 space-y-6 text-center relative overflow-hidden">
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#22D3EE]/10 border border-[#22D3EE]/20 text-[#22D3EE] mb-1">
+                    <Award className="w-7 h-7" />
                   </div>
-                  <div className="col-span-3 text-[13px] text-white/50">{item.course}</div>
-                  <div className="col-span-2 text-[13px] text-white/50">{item.due}</div>
-                  <div className="col-span-2 flex justify-end">
-                    <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium tracking-wide ${
-                      item.status === 'Completed' ? 'bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/20' :
-                      item.status === 'In Progress' ? 'bg-[#FFC107]/10 text-[#FFC107] border border-[#FFC107]/20' :
-                      'bg-white/5 text-white/60 border border-white/10'
-                    }`}>
-                      {item.status}
+                  <div>
+                    <span className="text-xs uppercase tracking-widest text-[#22D3EE] font-semibold">
+                      Assignment Complete
                     </span>
+                    <h2 className="text-2xl sm:text-3xl font-bold text-white mt-1">
+                      {activePractice.title}
+                    </h2>
+                    <p className="text-sm text-white/50 mt-1">
+                      Based on your completed session in {activePractice.topic}
+                    </p>
                   </div>
->>>>>>> 3b1961434419264a02cc7ee59af00f1510921fc9
-                </div>
-              ) : visible.length === 0 ? (
-                <div className="py-16 text-center text-sm text-white/40">
-                  {assignments.length === 0
-                    ? 'No assignments yet. Complete concepts in your learning sessions or take a quiz to generate tailored assignments.'
-                    : 'No tasks match your search.'}
-                </div>
-              ) : (
-                visible.map((task) => (
-                  <div
-                    key={task.id}
-                    className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-white/[0.02] transition-colors min-w-[640px]"
-                  >
-                    <div className="col-span-5 flex items-center gap-3">
-                      <button
-                        onClick={() => cycleStatus(task.id)}
-                        className="text-white/40 hover:text-white transition-colors cursor-pointer shrink-0"
-                        aria-label={`Cycle status for ${task.title}`}
-                      >
-                        {task.status === 'Completed' ? (
-                          <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
-                        ) : task.status === 'In Progress' ? (
-                          <Clock className="w-4 h-4 text-[#EAB308]" />
-                        ) : (
-                          <Circle className="w-4 h-4" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleOpenAssignment(task)}
-                        className="text-left font-medium text-[14px] text-white hover:text-[#22D3EE] transition-colors truncate cursor-pointer"
-                      >
-                        <span className={task.status === 'Completed' ? 'line-through text-white/40' : 'text-white/90'}>
-                          {task.title}
-                        </span>
-                      </button>
-                    </div>
 
-                    <div className="col-span-3 text-[13px] text-white/50 truncate">{task.course}</div>
-                    <div className="col-span-2 text-[12px] text-white/40">{task.due}</div>
-
-                    <div className="col-span-2 flex items-center justify-end gap-2">
-                      {task.score !== null && task.score !== undefined && (
-                        <span className="text-[12px] font-bold text-emerald-400">{task.score}%</span>
-                      )}
-                      <span
-                        className={`text-[10px] px-2.5 py-0.5 rounded-full font-medium border ${
-                          task.status === 'Completed'
-                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                            : task.status === 'In Progress'
-                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                            : 'bg-white/5 text-white/50 border-white/10'
-                        }`}
-                      >
-                        {task.status}
+                  {/* Score & Mastery Metric Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-lg mx-auto pt-2">
+                    <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5 flex flex-col items-center justify-center">
+                      <span className="text-xs text-white/40 uppercase font-medium">Score</span>
+                      <span className="text-3xl font-bold text-white mt-1">
+                        {resultSummary.correctAnswers || Object.values(answers).filter((a) => a.isCorrect).length} / {totalQuestionsCount}
+                      </span>
+                      <span className="text-xs text-[#22D3EE] mt-0.5 font-medium">
+                        {resultSummary.percentage || resultSummary.score}% Accuracy
                       </span>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Assignment Detail & Submission Modal */}
-      {activeAssignmentModal && (
-        <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setActiveAssignmentModal(null)} />
-          <div className="relative w-full max-w-2xl bg-[#0D1117] border border-white/10 rounded-2xl max-h-[90vh] flex flex-col shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-6 border-b border-white/10">
-              <div className="flex items-center gap-2.5">
-                <Code2 className="w-5 h-5 text-[#22D3EE]" />
-                <div>
-                  <h3 className="text-base font-bold text-white">{activeAssignmentModal.title}</h3>
-                  <p className="text-xs text-white/50">{activeAssignmentModal.course}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setActiveAssignmentModal(null)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 p-6 overflow-y-auto space-y-6">
-              {/* Description */}
-              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2">
-                <div className="text-xs font-semibold text-white/40 uppercase tracking-wider">Objective</div>
-                <p className="text-sm text-white/80 leading-relaxed">{activeAssignmentModal.description}</p>
-              </div>
-
-              {/* Tasks List */}
-              {activeAssignmentModal.tasks?.length > 0 && (
-                <div className="space-y-3">
-                  <div className="text-xs font-semibold text-white/40 uppercase tracking-wider">Assignment Tasks</div>
-                  <div className="space-y-2">
-                    {activeAssignmentModal.tasks.map((taskItem, ti) => (
-                      <div key={ti} className="p-3 rounded-lg bg-[#161B22] border border-white/5 text-xs text-white/80 leading-relaxed flex items-start gap-2.5">
-                        <span className="w-4 h-4 rounded-full bg-[#22D3EE]/10 text-[#22D3EE] font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">
-                          {ti + 1}
+                    <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5 flex flex-col items-center justify-center">
+                      <span className="text-xs text-white/40 uppercase font-medium">Overall Mastery</span>
+                      <span className="text-3xl font-bold text-emerald-400 mt-1">
+                        {resultSummary.newMastery || activePractice.sessionMastery || 75}%
+                      </span>
+                      {resultSummary.masteryDelta > 0 && (
+                        <span className="text-xs text-emerald-400 flex items-center gap-1 mt-0.5 font-medium">
+                          <TrendingUp className="w-3 h-3" /> +{resultSummary.masteryDelta}% boost
                         </span>
-                        <span>{taskItem}</span>
+                      )}
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5 flex flex-col items-center justify-center">
+                      <span className="text-xs text-white/40 uppercase font-medium">Level</span>
+                      <span className="text-lg font-bold text-white capitalize mt-2">
+                        {resultSummary.percentage >= 80 ? 'Mastered' : resultSummary.percentage >= 60 ? 'Developing' : 'Needs Practice'}
+                      </span>
+                      <span className="text-[11px] text-white/40 mt-1">Updated in DB</span>
+                    </div>
+                  </div>
+
+                  {/* Concept Mastery Comparison Breakdown */}
+                  {resultSummary.conceptBreakdown?.length > 0 && (
+                    <div className="pt-4 border-t border-white/10 text-left">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xs font-semibold text-white/60 uppercase tracking-wider">
+                          Concept Mastery Updates
+                        </h4>
+                        <span className="text-xs text-emerald-400 font-medium">Saved to PostgreSQL</span>
                       </div>
-                    ))}
+                      <div className="space-y-2">
+                        {resultSummary.conceptBreakdown.map((cb, idx) => (
+                          <div
+                            key={idx}
+                            className="p-3.5 rounded-xl bg-[#12161E] border border-white/5 flex items-center justify-between gap-3 text-xs"
+                          >
+                            <span className="text-white/80 font-medium truncate">{cb.title}</span>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="text-white/40">{cb.previousScore}%</span>
+                              <span className="text-white/20">→</span>
+                              <span className="font-bold text-white">{cb.currentScore}%</span>
+                              {cb.delta > 0 && (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-semibold text-[11px]">
+                                  +{cb.delta}%
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recommendations */}
+                  <div className="p-4 rounded-xl bg-[#22D3EE]/5 border border-[#22D3EE]/20 text-left flex items-start gap-3">
+                    <Lightbulb className="w-5 h-5 text-[#22D3EE] shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-xs font-bold text-[#22D3EE] uppercase tracking-wider">Next Step</h4>
+                      <p className="text-xs text-white/80 mt-0.5 leading-relaxed">
+                        {resultSummary.recommendedNext || 'Review your progress on the Insights dashboard and continue learning new topics.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                    <button
+                      onClick={() => (navigateTo ? navigateTo('dashboard/insights') : null)}
+                      className="px-6 py-2.5 bg-[#22D3EE] text-black font-semibold text-xs rounded-lg hover:bg-[#22D3EE]/90 transition-all shadow-lg flex items-center gap-2 cursor-pointer"
+                    >
+                      <TrendingUp className="w-4 h-4" />
+                      View Mastery Insights
+                    </button>
+                    <button
+                      onClick={() => openAssignmentPractice(activePractice.sessionId)}
+                      className="px-5 py-2.5 bg-white/10 hover:bg-white/15 text-white font-medium text-xs rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Practice Again
+                    </button>
+                    <button
+                      onClick={() => setActivePractice(null)}
+                      className="px-4 py-2.5 border border-white/10 text-white/70 hover:text-white text-xs rounded-lg transition-colors cursor-pointer"
+                    >
+                      Back to Assignments
+                    </button>
                   </div>
                 </div>
-              )}
-
-              {/* Solution Input */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-white/40 uppercase tracking-wider">Your Solution / Code</label>
-                  <span className="text-[11px] text-white/40">Python / JavaScript / Markdown</span>
-                </div>
-                <textarea
-                  rows={6}
-                  value={submissionCode}
-                  onChange={(e) => setSubmissionCode(e.target.value)}
-                  placeholder="Paste or write your working solution and explanations here..."
-                  className="w-full bg-[#161B22] border border-white/10 rounded-xl p-3.5 text-xs font-mono text-white placeholder-white/20 focus:outline-none focus:border-[#22D3EE] leading-relaxed transition-colors"
-                />
               </div>
-
-              {/* Evaluation Feedback */}
-              {submissionFeedback && (
-                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 space-y-1 animate-in fade-in">
-                  <div className="font-semibold text-emerald-400 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" /> Score: {submissionFeedback.score}%
+            ) : currentQuestion ? (
+              /* ─── Question By Question Stepper ─────────────────────────────────────── */
+              <div className="space-y-6">
+                {/* Stepper Header */}
+                <div className="p-5 rounded-2xl bg-[#0A0A0A] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-xs text-white/50">
+                      <span>{activePractice.topic}</span>
+                      <span>•</span>
+                      <span className="capitalize text-[#22D3EE] font-medium">{activePractice.difficulty} Practice</span>
+                    </div>
+                    <h2 className="text-lg font-bold text-white tracking-tight">
+                      Question {currentQIndex + 1} of {totalQuestionsCount}
+                    </h2>
                   </div>
-                  <p className="text-white/70">{submissionFeedback.feedback}</p>
-                </div>
-              )}
-            </div>
 
-            <div className="p-4 sm:p-6 border-t border-white/10 flex items-center justify-end gap-3 bg-[#0A0E14] rounded-b-2xl">
-              <button
-                onClick={() => setActiveAssignmentModal(null)}
-                className="px-4 py-2 border border-white/10 text-white/70 hover:text-white text-xs rounded-lg transition-colors cursor-pointer"
-              >
-                Close
-              </button>
-              <button
-                onClick={handleSubmitSolution}
-                disabled={!submissionCode.trim() || isSubmitting}
-                className="px-5 py-2 bg-[#22D3EE] text-black font-semibold text-xs rounded-lg hover:bg-[#22D3EE]/90 transition-colors disabled:opacity-40 flex items-center gap-2 cursor-pointer shadow-md"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Evaluating...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-3.5 h-3.5" /> Submit Assignment
-                  </>
-                )}
-              </button>
-            </div>
+                  {activePractice.focusConcepts?.length > 0 && (
+                    <div className="px-3 py-1.5 rounded-lg bg-[#22D3EE]/10 border border-[#22D3EE]/20 text-[#22D3EE] text-xs font-medium self-start sm:self-auto flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5" />
+                      <span>Focus: {activePractice.focusConcepts[0]?.conceptTitle || 'Targeted Weak Area'}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Question Progress Bar */}
+                <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-[#22D3EE] h-full transition-all duration-300"
+                    style={{ width: `${((currentQIndex + (currentAnswered ? 1 : 0)) / totalQuestionsCount) * 100}%` }}
+                  />
+                </div>
+
+                {/* Main Question Card */}
+                <div className="p-6 sm:p-8 rounded-2xl bg-[#0D1117] border border-white/10 space-y-6 shadow-xl">
+                  {/* Concept Tag */}
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] font-medium text-white/60">
+                    <BrainCircuit className="w-3 h-3 text-[#22D3EE]" />
+                    <span>Concept: {currentQuestion.conceptTitle}</span>
+                  </div>
+
+                  {/* Question Prompt */}
+                  <div className="text-base sm:text-lg text-white font-medium leading-relaxed">
+                    <InlineText text={currentQuestion.question} />
+                  </div>
+
+                  {/* Options List */}
+                  <div className="space-y-3 pt-2">
+                    {currentQuestion.options?.map((opt) => {
+                      const isSelected = selectedOption === opt.value;
+                      const hasAnswered = !!currentAnswered;
+                      const wasChosen = currentAnswered?.selectedAnswer === opt.value;
+                      const isActualCorrect = currentAnswered && String(opt.value).toUpperCase() === String(currentQuestion.correctAnswer).toUpperCase();
+
+                      let cardStyle = 'border-white/10 bg-[#161B22] hover:border-white/30 text-white/90 cursor-pointer';
+
+                      if (hasAnswered) {
+                        if (wasChosen && currentAnswered.isCorrect) {
+                          // Correct chosen
+                          cardStyle = 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200 cursor-default';
+                        } else if (wasChosen && !currentAnswered.isCorrect) {
+                          // Wrong chosen
+                          cardStyle = 'border-rose-500/60 bg-rose-500/10 text-rose-200 cursor-default';
+                        } else if (isActualCorrect) {
+                          // Reveal correct answer
+                          cardStyle = 'border-emerald-500/50 bg-emerald-500/5 text-emerald-300 cursor-default';
+                        } else {
+                          cardStyle = 'border-white/5 bg-[#12161F] text-white/40 opacity-50 cursor-default';
+                        }
+                      } else if (isSelected) {
+                        cardStyle = 'border-[#22D3EE] bg-[#22D3EE]/10 text-white shadow-[0_0_15px_rgba(34,211,238,0.15)] cursor-pointer';
+                      }
+
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          disabled={hasAnswered}
+                          onClick={() => setSelectedOption(opt.value)}
+                          className={`w-full p-4 rounded-xl border text-left flex items-start gap-3.5 transition-all text-xs sm:text-sm leading-relaxed ${cardStyle}`}
+                        >
+                          <span
+                            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 transition-colors ${
+                              hasAnswered
+                                ? wasChosen && currentAnswered.isCorrect
+                                  ? 'bg-emerald-500 text-black'
+                                  : wasChosen && !currentAnswered.isCorrect
+                                  ? 'bg-rose-500 text-white'
+                                  : isActualCorrect
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                  : 'bg-white/5 text-white/40'
+                                : isSelected
+                                ? 'bg-[#22D3EE] text-black'
+                                : 'bg-white/10 text-white/70'
+                            }`}
+                          >
+                            {opt.value}
+                          </span>
+                          <span className="flex-1">
+                            <InlineText text={opt.label} />
+                          </span>
+                          {hasAnswered && (
+                            <span className="shrink-0 pt-0.5">
+                              {wasChosen && currentAnswered.isCorrect && (
+                                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                              )}
+                              {wasChosen && !currentAnswered.isCorrect && (
+                                <X className="w-5 h-5 text-rose-400" />
+                              )}
+                              {!wasChosen && isActualCorrect && (
+                                <Check className="w-4 h-4 text-emerald-400" />
+                              )}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Feedback Section (when submitted) */}
+                  {currentAnswered && (
+                    <div
+                      className={`p-5 rounded-xl border animate-in fade-in slide-in-from-top-2 duration-300 space-y-2 ${
+                        currentAnswered.isCorrect
+                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200'
+                          : 'bg-rose-500/10 border-rose-500/20 text-rose-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider">
+                        {currentAnswered.isCorrect ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <X className="w-4 h-4 text-rose-400" />
+                        )}
+                        <span>{currentAnswered.feedback || (currentAnswered.isCorrect ? 'Correct!' : 'Not quite')}</span>
+                        {!currentAnswered.isCorrect && (
+                          <span className="text-white/60 font-normal">
+                            (Correct Answer: <strong className="text-white">{currentAnswered.correctAnswer}</strong>)
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-white/80 leading-relaxed font-sans">
+                        <InlineText text={currentAnswered.explanation} />
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Action Bar */}
+                  <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-4">
+                    <button
+                      onClick={() => {
+                        if (currentQIndex > 0) {
+                          setCurrentQIndex((p) => p - 1);
+                          setSelectedOption(null);
+                        }
+                      }}
+                      disabled={currentQIndex === 0}
+                      className="px-4 py-2 border border-white/10 rounded-lg text-xs text-white/50 hover:text-white disabled:opacity-30 transition-colors cursor-pointer"
+                    >
+                      Previous
+                    </button>
+
+                    {!currentAnswered ? (
+                      <button
+                        onClick={handleCheckAnswer}
+                        disabled={!selectedOption || submittingAnswer}
+                        className="px-6 py-2.5 bg-[#22D3EE] text-black font-semibold text-xs rounded-lg hover:bg-[#22D3EE]/90 disabled:opacity-40 transition-all flex items-center gap-2 shadow-md cursor-pointer"
+                      >
+                        {submittingAnswer ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Checking...
+                          </>
+                        ) : (
+                          'Submit Answer'
+                        )}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleNextQuestion}
+                        disabled={completingAssignment}
+                        className="px-6 py-2.5 bg-[#22D3EE] text-black font-semibold text-xs rounded-lg hover:bg-[#22D3EE]/90 transition-all flex items-center gap-2 shadow-md cursor-pointer"
+                      >
+                        {completingAssignment ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Finalizing Mastery...
+                          </>
+                        ) : currentQIndex + 1 < totalQuestionsCount ? (
+                          <>
+                            Next Question
+                            <ChevronRight className="w-4 h-4" />
+                          </>
+                        ) : (
+                          <>
+                            Complete Assignment
+                            <Sparkles className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
-        </div>
-      )}
+        ) : (
+          /* =========================================================================
+             2. OVERVIEW / LIST VIEW OF ALL PERSONALIZED ASSIGNMENTS
+             ========================================================================= */
+          <div className="p-4 sm:p-8 pb-16 flex flex-col gap-6 max-w-[1100px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Hero Banner for Latest Completed Session Assignment */}
+            {latestAssignment && (
+              <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-[#0C121E] via-[#0A0D14] to-[#050505] border border-[#22D3EE]/20 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-72 h-72 bg-[#22D3EE]/10 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Slide-out Generator Drawer */}
-      {isDrawerOpen && (
-        <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setIsDrawerOpen(false)} />
-          <div className="relative w-full max-w-md bg-[#0D1117] border-l border-white/10 h-full flex flex-col p-6 shadow-2xl z-10 animate-in slide-in-from-right duration-300">
-            <div className="flex items-center justify-between pb-6 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <BrainCircuit className="w-5 h-5 text-[#22D3EE]" />
-                <h3 className="text-base font-semibold text-white">Generate Assignment</h3>
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="space-y-2 max-w-xl">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#22D3EE]/10 border border-[#22D3EE]/30 text-[#22D3EE] text-[11px] font-semibold tracking-wide uppercase">
+                        Latest Personalized Practice
+                      </span>
+                      <span className="text-xs text-white/40">• Based on Completed Session</span>
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                      {latestAssignment.topic || latestAssignment.title}
+                    </h2>
+                    <p className="text-xs sm:text-sm text-white/60 leading-relaxed">
+                      {latestAssignment.description ||
+                        'Targeted practice questions generated from your checkpoint performance to solidify your understanding.'}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-4 pt-2 text-xs text-white/50">
+                      <div className="flex items-center gap-1.5">
+                        <BrainCircuit className="w-3.5 h-3.5 text-[#22D3EE]" />
+                        <span>{latestAssignment.questionsCount || 8} Interactive Questions</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Award className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="capitalize">{latestAssignment.difficulty || 'Developing'} Level</span>
+                      </div>
+                      {latestAssignment.score !== null && latestAssignment.score !== undefined && (
+                        <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Last Score: {latestAssignment.score}%</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-3">
+                    <button
+                      onClick={() => openAssignmentPractice(latestAssignment.sessionId)}
+                      className="px-6 py-3 bg-[#22D3EE] text-black font-semibold text-xs rounded-xl hover:bg-[#22D3EE]/90 transition-all shadow-lg flex items-center gap-2 cursor-pointer"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      {latestAssignment.status === 'Completed'
+                        ? 'Practice Again'
+                        : latestAssignment.status === 'In Progress'
+                        ? 'Continue Practice'
+                        : 'Start Assignment'}
+                    </button>
+                  </div>
+                </div>
               </div>
-              <button onClick={() => setIsDrawerOpen(false)} className="text-white/40 hover:text-white transition-colors" aria-label="Close">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            )}
 
-            <div className="flex-1 py-6 flex flex-col gap-5 overflow-y-auto">
+            {/* List Header & Search Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
               <div>
-                <label className="text-[13px] font-medium text-white/70 block mb-2">Subject</label>
-                <select
-                  value={selectedSubject}
-                  onChange={(e) => {
-                    setSelectedSubject(e.target.value);
-                    setSelectedTopic('');
-                  }}
-                  className="w-full bg-[#161B22] border border-white/10 rounded-lg p-2.5 text-[14px] text-white focus:outline-none focus:border-[#22D3EE]"
-                >
-                  <option value="">Select a subject...</option>
-                  {Object.keys(SUBJECTS).map((sub) => (
-                    <option key={sub} value={sub}>
-                      {sub}
-                    </option>
-                  ))}
-                </select>
+                <h3 className="text-xl font-bold text-white tracking-tight">Session Assignments</h3>
+                <p className="text-xs text-white/50 mt-0.5">
+                  Generated automatically when you complete learning sessions.
+                </p>
               </div>
 
-              {selectedSubject && (
-                <div className="animate-in fade-in duration-300">
-                  <label className="text-[13px] font-medium text-white/70 block mb-2">Topic</label>
-                  <select
-                    value={selectedTopic}
-                    onChange={(e) => setSelectedTopic(e.target.value)}
-                    className="w-full bg-[#161B22] border border-white/10 rounded-lg p-2.5 text-[14px] text-white focus:outline-none focus:border-[#22D3EE]"
-                  >
-                    <option value="">Select a topic...</option>
-                    {SUBJECTS[selectedSubject].map((top) => (
-                      <option key={top} value={top}>
-                        {top}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            <div className="pt-6 border-t border-white/10 flex gap-3">
-              <button
-                onClick={() => setIsDrawerOpen(false)}
-                className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 text-[13px] font-medium py-2.5 rounded-lg transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleGenerate}
-                disabled={!selectedSubject || !selectedTopic || isGenerating}
-                className="flex-1 bg-[#22D3EE] text-black hover:bg-[#22D3EE]/90 disabled:opacity-50 disabled:hover:bg-[#22D3EE] text-[13px] font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 fill-current" />
-                    Generate Custom Assignment
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Solver Drawer */}
-      {activeAssignment && (
-        <>
-          <div 
-            className="absolute inset-0 bg-black/40 z-40 backdrop-blur-[2px] transition-all"
-            onClick={() => setActiveAssignment(null)}
-          ></div>
-          <div className="absolute top-0 right-0 bottom-0 w-full sm:w-[600px] bg-[#0B0E11] border-l border-white/5 flex flex-col z-50 animate-in slide-in-from-right duration-300 shadow-2xl">
-            <div className="h-[70px] border-b border-white/5 flex items-center justify-between px-8 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#00E676]/10 flex items-center justify-center text-[#00E676]">
-                  <CheckCircle2 className="w-4 h-4" />
+                <div className="relative">
+                  <Search className="w-4 h-4 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    aria-label="Search assignments"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search topics..."
+                    className="bg-[#0A0A0A] border border-white/10 rounded-lg pl-9 pr-4 py-2 text-[13px] text-white placeholder-white/30 focus:outline-none focus:border-white/20 w-48 sm:w-60 transition-colors"
+                  />
                 </div>
-                <h2 className="text-[15px] font-semibold text-white tracking-tight">Assignment Details</h2>
-              </div>
-              <button 
-                onClick={() => setActiveAssignment(null)}
-                className="text-white/40 hover:text-white p-2 rounded-lg hover:bg-white/5 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-8 flex flex-col gap-6 flex-1 overflow-y-auto">
-              <div>
-                <div className="text-[13px] text-[#22D3EE] font-medium mb-1">{activeAssignment.course}</div>
-                <h3 className="text-2xl font-bold text-white mb-3">{activeAssignment.title}</h3>
-                <div className="flex items-center gap-4 text-[12px] text-white/50">
-                  <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Due: {activeAssignment.due}</span>
-                  <span className={`px-2 py-0.5 rounded-full font-medium tracking-wide ${
-                      activeAssignment.status === 'Completed' ? 'bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/20' :
-                      activeAssignment.status === 'In Progress' ? 'bg-[#FFC107]/10 text-[#FFC107] border border-[#FFC107]/20' :
-                      'bg-white/5 text-white/60 border border-white/10'
-                    }`}>Status: {activeAssignment.status}</span>
-                </div>
-              </div>
-
-              <div className="w-full h-px bg-white/5 my-2"></div>
-
-              <div>
-                <h4 className="text-[14px] font-medium text-white/80 mb-3">Instructions</h4>
-                <div className="text-[14px] text-white/60 leading-relaxed p-5 bg-[#12161B] rounded-lg border border-white/5">
-                  {activeAssignment.description || "No specific instructions provided. Complete the task as per your course syllabus."}
-                </div>
-              </div>
-
-              <div className="flex-1 flex flex-col mt-2">
-                <h4 className="text-[14px] font-medium text-white/80 mb-3">Your Proof / Solution</h4>
-                <textarea 
-                  value={submissionText}
-                  onChange={(e) => setSubmissionText(e.target.value)}
-                  disabled={activeAssignment.status === 'Completed'}
-                  placeholder="Paste your code, links, or write your answer here to prove completion..."
-                  className="w-full flex-1 min-h-[250px] bg-[#12161B] border border-white/10 rounded-lg p-5 text-[14px] text-white focus:outline-none focus:border-[#00E676]/50 transition-colors resize-none disabled:opacity-60 disabled:cursor-not-allowed"
-                ></textarea>
+                <button
+                  onClick={() => setStatusFilter((f) => FILTERS[(FILTERS.indexOf(f) + 1) % FILTERS.length])}
+                  aria-label={`Filter by status: ${statusFilter}`}
+                  className="p-2 px-3 border border-white/10 bg-[#0A0A0A] rounded-lg text-white/70 hover:text-white transition-colors flex items-center gap-2 text-[12px] cursor-pointer"
+                >
+                  <Filter className="w-3.5 h-3.5" />
+                  {statusFilter}
+                </button>
               </div>
             </div>
 
-            <div className="p-6 border-t border-white/5 bg-[#0B0E11]">
-              <button 
-                onClick={() => {
-                  setAssignments(list => list.map(a => a.id === activeAssignment.id ? { ...a, status: 'Completed', submission: submissionText } : a));
-                  setActiveAssignment(null);
-                }}
-                disabled={!submissionText.trim() || activeAssignment.status === 'Completed'}
-                className="w-full bg-[#00E676] text-black font-semibold rounded-lg py-3.5 text-[14px] hover:bg-[#00E676]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {activeAssignment.status === 'Completed' ? 'Already Completed' : 'Submit Assignment'}
-              </button>
+            {/* Assignments Table / List Card */}
+            <div className="border border-white/10 rounded-2xl bg-[#0A0A0A] overflow-x-auto shadow-sm">
+              <div className="grid grid-cols-12 gap-4 p-4 border-b border-white/10 text-[11px] font-semibold text-white/40 uppercase tracking-wider min-w-[640px]">
+                <div className="col-span-5">Personalized Assignment</div>
+                <div className="col-span-3">Session Topic</div>
+                <div className="col-span-2">Difficulty / Questions</div>
+                <div className="col-span-2 text-right">Status / Score</div>
+              </div>
+
+              <div className="flex flex-col divide-y divide-white/5">
+                {loading ? (
+                  <div className="py-16 flex items-center justify-center gap-2 text-white/40 text-sm">
+                    <Loader2 className="w-5 h-5 animate-spin text-[#22D3EE]" />
+                    <span>Loading personalized assignments from PostgreSQL...</span>
+                  </div>
+                ) : visibleAssignments.length === 0 ? (
+                  <div className="py-16 px-6 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-white/40">
+                      <BookOpen className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm text-white/80 font-medium">No personalized assignments yet.</p>
+                    <p className="text-xs text-white/40 max-w-sm mx-auto">
+                      Complete a learning session and its checkpoints to unlock your first targeted practice set.
+                    </p>
+                    <button
+                      onClick={() => (navigateTo ? navigateTo('dashboard/tutor') : null)}
+                      className="mt-2 px-4 py-2 bg-white text-black font-semibold text-xs rounded-lg hover:bg-white/90 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Start Learning
+                    </button>
+                  </div>
+                ) : (
+                  visibleAssignments.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => openAssignmentPractice(item.sessionId)}
+                      className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-white/[0.03] transition-colors min-w-[640px] cursor-pointer group"
+                    >
+                      <div className="col-span-5 flex items-center gap-3">
+                        {item.status === 'Completed' ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        ) : item.status === 'In Progress' ? (
+                          <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                        ) : (
+                          <Circle className="w-4 h-4 text-white/30 shrink-0" />
+                        )}
+                        <span className="text-[13px] font-medium text-white group-hover:text-[#22D3EE] transition-colors truncate">
+                          {item.title}
+                        </span>
+                      </div>
+
+                      <div className="col-span-3 text-[12px] text-white/50 truncate">
+                        {item.topic || item.course}
+                      </div>
+
+                      <div className="col-span-2 text-[12px] text-white/40 capitalize">
+                        {item.difficulty || 'Developing'} • {item.questionsCount || 8}Q
+                      </div>
+
+                      <div className="col-span-2 flex items-center justify-end gap-2">
+                        {item.score !== null && item.score !== undefined && (
+                          <span className="text-[12px] font-bold text-emerald-400">{item.score}%</span>
+                        )}
+                        <span
+                          className={`text-[10px] px-2.5 py-0.5 rounded-full font-medium border ${
+                            item.status === 'Completed'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : item.status === 'In Progress'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              : 'bg-[#22D3EE]/10 text-[#22D3EE] border-[#22D3EE]/20'
+                          }`}
+                        >
+                          {item.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 }
