@@ -34,15 +34,13 @@ const {
   getStrongConcepts,
 } = require('../services/masteryService');
 
-// ─── Session Management ──────────────────────────────────────────────────────
-
 /**
  * POST /api/learning/start
- * Creates a new learning session for a given topic.
+ * Creates a new learning session for a given topic, or resumes an active session if resumeIfExists is true.
  */
 const startLearning = async (req, res) => {
   try {
-    const { topic } = req.body;
+    const { topic, resumeIfExists } = req.body;
     const userId = req.user.id;
 
     if (!topic || !topic.trim()) {
@@ -59,10 +57,72 @@ const startLearning = async (req, res) => {
       });
     }
 
-    const result = await createLearningSession(userId, topic.trim());
+    const cleanTopic = topic.trim();
+
+    // If requested, check for an existing active session for this topic to avoid duplicate active sessions
+    if (resumeIfExists) {
+      const isBS = isPrebuiltTopic(cleanTopic);
+      const existingQuery = isBS
+        ? `SELECT id FROM learning_sessions 
+           WHERE user_id = $1 AND status = 'active' AND (
+             LOWER(topic) LIKE '%binary search%' OR LOWER(topic) LIKE '%binary-search%' OR LOWER(topic) LIKE '%binarysearch%'
+           )
+           ORDER BY updated_at DESC LIMIT 1`
+        : `SELECT id FROM learning_sessions 
+           WHERE user_id = $1 AND status = 'active' AND LOWER(TRIM(topic)) = LOWER(TRIM($2))
+           ORDER BY updated_at DESC LIMIT 1`;
+      
+      const existingParams = isBS ? [userId] : [userId, cleanTopic];
+      const existingRes = await db.query(existingQuery, existingParams);
+
+      if (existingRes.rows.length > 0) {
+        const existingSessionId = existingRes.rows[0].id;
+        const result = await getSessionWithConcepts(existingSessionId, userId);
+        if (result) {
+          return res.status(200).json({
+            success: true,
+            resumed: true,
+            data: {
+              session: result.session,
+              concepts: result.concepts.map((c) => ({
+                id: c.id,
+                title: c.title,
+                content: c.content,
+                examples: c.examples,
+                key_takeaways: c.key_takeaways,
+                keyTakeaways: c.key_takeaways,
+                status: c.status,
+                order_index: c.order_index,
+                orderIndex: c.order_index,
+                score: c.score || null,
+                masteryLevel: c.mastery_level || null,
+                checkpoints: c.checkpoints || [],
+              })),
+              currentConcept: result.currentConcept
+                ? {
+                    id: result.currentConcept.id,
+                    title: result.currentConcept.title,
+                    content: result.currentConcept.content,
+                    examples: result.currentConcept.examples,
+                    key_takeaways: result.currentConcept.key_takeaways,
+                    keyTakeaways: result.currentConcept.key_takeaways,
+                    order_index: result.currentConcept.order_index,
+                    orderIndex: result.currentConcept.order_index,
+                    status: result.currentConcept.status,
+                    checkpoints: result.currentConcept.checkpoints || [],
+                  }
+                : null,
+            },
+          });
+        }
+      }
+    }
+
+    const result = await createLearningSession(userId, cleanTopic);
 
     return res.status(201).json({
       success: true,
+      resumed: false,
       data: {
         session: result.session,
         concepts: result.concepts.map((c) => ({
@@ -118,6 +178,65 @@ const startLearning = async (req, res) => {
     return res.status(500).json({
       success: false,
       error: { code: 'SERVER_ERROR', message: 'Failed to create learning session.' },
+    });
+  }
+};
+
+/**
+ * GET /api/learning/preview?topic=...
+ * Returns structured curriculum preview from database/prebuilt data.
+ * Checks if topic is supported (currently Binary Search).
+ */
+const getLearningPreview = async (req, res) => {
+  try {
+    const topic = req.query.topic || req.params.topic || '';
+    if (!topic || !topic.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Topic is required.' },
+      });
+    }
+
+    const cleanTopic = topic.trim();
+    const isBS = isPrebuiltTopic(cleanTopic);
+
+    if (isBS) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          isSupported: true,
+          topic: binarySearchData.topic,
+          description: 'Master Binary Search from fundamentals to implementation, edge cases, and algorithmic complexity.',
+          totalConcepts: binarySearchData.concepts.length,
+          features: [
+            `${binarySearchData.concepts.length} Interactive Concepts`,
+            'Checkpoint Knowledge Checks',
+            'Progressive Difficulty Scaling',
+            'PostgreSQL Cloud Session Sync',
+          ],
+          concepts: binarySearchData.concepts.map((c, i) => ({
+            orderIndex: i + 1,
+            title: c.title,
+            keyTakeaways: c.keyTakeaways || '',
+          })),
+        },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        isSupported: false,
+        topic: cleanTopic,
+        message: 'More learning paths are coming soon. Binary Search is currently available with full interactive checkpoints.',
+        supportedTopics: ['Binary Search'],
+      },
+    });
+  } catch (err) {
+    console.error('[Learning] getLearningPreview error:', err.message);
+    return res.status(500).json({
+      success: false,
+      error: { code: 'SERVER_ERROR', message: 'Failed to retrieve learning preview.' },
     });
   }
 };
@@ -1463,6 +1582,7 @@ const getUserQuizzes = async (req, res) => {
 
 module.exports = {
   startLearning,
+  getLearningPreview,
   getUserSessions,
   getSession,
   getCurrentConcept,

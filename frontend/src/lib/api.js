@@ -137,14 +137,21 @@ export const progressApi = {
 
 export const learningApi = {
   /**
-   * Starts a new learning session for a given topic.
+   * Starts a new learning session for a given topic, or resumes if specified.
    * Creates records in PostgreSQL (session, concepts, checkpoints).
    */
-  async startSession(topic) {
+  async startSession(topic, options = {}) {
     return apiRequest('/api/learning/start', {
       method: 'POST',
-      body: JSON.stringify({ topic }),
+      body: JSON.stringify({ topic, ...options }),
     });
+  },
+
+  /**
+   * Retrieves curriculum preview from the backend for a given topic.
+   */
+  async getPreview(topic) {
+    return apiRequest(`/api/learning/preview?topic=${encodeURIComponent(topic)}`);
   },
 
   /**

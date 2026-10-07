@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   startLearning,
+  getLearningPreview,
   getUserSessions,
   getSession,
   getCurrentConcept,
@@ -25,6 +26,9 @@ const router = express.Router();
 
 // Direct tutor client integration (optional auth)
 router.post('/tutor', handleTutorQuestion);
+
+// Topic preview / curriculum validation (optional auth, before /:sessionId)
+router.get('/preview', getLearningPreview);
 
 // Session management & User-level aggregates (MUST precede /:sessionId)
 router.post('/start',                           authenticate, startLearning);
