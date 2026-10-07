@@ -9,18 +9,12 @@
  * PostgreSQL is the source of truth. AI provides content. Backend controls all state.
  */
 const db = require('../config/db');
-const { binarySearchData } = require('../data/prebuiltBinarySearch');
+const {
+  isPrebuiltTopic,
+  getPrebuiltTopicData,
+  resolvePrebuiltTopic,
+} = require('../data/prebuiltTopics');
 const { generateLearningPath, isConfigured: aiAvailable } = require('./aiService');
-
-const BINARY_SEARCH_KEYWORDS = ['binary search', 'binary-search', 'binarysearch'];
-
-/**
- * Determines if a topic should use the prebuilt Binary Search content.
- */
-function isPrebuiltTopic(topic) {
-  const normalized = topic.trim().toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ');
-  return BINARY_SEARCH_KEYWORDS.some((kw) => normalized.includes(kw));
-}
 
 /**
  * Calculates progress percentage based on completed concepts.
@@ -90,11 +84,12 @@ async function createLearningSession(userId, topic) {
   // Determine learning content source
   let learningData;
 
-  if (AI_MODE === 'prebuilt' || (AI_MODE === 'hybrid' && isPrebuiltTopic(topic))) {
-    console.log(`[Learning] Using prebuilt content for: "${topic}"`);
+  const prebuilt = getPrebuiltTopicData(topic);
+  if (prebuilt && (AI_MODE === 'prebuilt' || AI_MODE === 'hybrid')) {
+    console.log(`[Learning] Using prebuilt content for: "${topic}" -> "${prebuilt.topic}"`);
     learningData = {
-      topic: binarySearchData.topic,
-      concepts: binarySearchData.concepts,
+      topic: prebuilt.topic,
+      concepts: prebuilt.concepts,
     };
   } else if (aiAvailable) {
     try {

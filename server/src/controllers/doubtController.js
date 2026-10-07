@@ -10,13 +10,7 @@
  */
 const db = require('../config/db');
 const { answerDoubt: answerWithAI, isConfigured: aiAvailable } = require('../services/aiService');
-const { evaluateDoubt: evaluatePrebuiltDoubt } = require('../data/prebuiltBinarySearch');
-
-const BINARY_SEARCH_KEYWORDS = ['binary search', 'binary-search', 'binarysearch'];
-
-function isPrebuiltSession(topic) {
-  return BINARY_SEARCH_KEYWORDS.some((kw) => (topic || '').toLowerCase().includes(kw));
-}
+const { isPrebuiltTopic, evaluatePrebuiltDoubt } = require('../data/prebuiltTopics');
 
 const GENERIC_FALLBACK = `I'm here to help you understand this concept better. Try asking me:
 • Why is this step necessary?  
@@ -88,9 +82,9 @@ const askDoubt = async (req, res) => {
     // 3. Get answer (NEVER modifies learning state)
     let answer;
 
-    if (isPrebuiltSession(session.topic)) {
+    if (isPrebuiltTopic(session.topic)) {
       // Try keyword-based prebuilt answer first
-      const prebuiltAnswer = evaluatePrebuiltDoubt(question);
+      const prebuiltAnswer = evaluatePrebuiltDoubt(session.topic, question);
       if (prebuiltAnswer) {
         answer = prebuiltAnswer;
       } else if (aiAvailable) {
@@ -214,7 +208,7 @@ const handleTutorQuestion = async (req, res) => {
     const content = context.content || '';
 
     let answer;
-    const prebuiltAnswer = evaluatePrebuiltDoubt(question);
+    const prebuiltAnswer = evaluatePrebuiltDoubt(topic, question);
     if (prebuiltAnswer) {
       answer = prebuiltAnswer;
     } else if (aiAvailable) {

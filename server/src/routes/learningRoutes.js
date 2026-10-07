@@ -48,6 +48,8 @@ router.get('/:sessionId/concepts/:conceptId/checkpoints', authenticate, getCheck
 // Doubts (contextual, concept-anchored, does NOT modify learning state)
 router.get('/:sessionId/concepts/:conceptId/doubts',  authenticate, getDoubts);
 router.post('/:sessionId/concepts/:conceptId/doubt',  authenticate, askDoubt);
+router.get('/:sessionId/concept/:conceptId/doubts',   authenticate, getDoubts);
+router.post('/:sessionId/concept/:conceptId/doubt',   authenticate, askDoubt);
 
 // Quiz
 router.post('/:sessionId/quiz',        authenticate, createQuiz);

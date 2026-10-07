@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Lock, Eye, EyeOff, MapPin, Calendar, Hash, Command } from 'lucide-react';
 
 import { useApp } from '../store/AppStore';
+import { authApi } from '../lib/api';
 
 // --- Starfall Canvas Background (Shooting Upwards) ---
 function StarfallCanvas() {
@@ -137,63 +138,54 @@ export default function AuthPage({ navigateTo }) {
     const f = new FormData(e.currentTarget);
     const data = Object.fromEntries(f.entries());
 
+    const cleanEmail = (data.email || '').trim().toLowerCase();
+    const cleanPassword = data.password || '';
+
+    if (!cleanEmail) {
+      return setError('Email is required.');
+    }
+
     if (!isLogin) {
-      if (data.password.length < 8) return setError('Password must be at least 8 characters.');
-      if (data.password !== data.confirm) return setError('Passwords do not match.');
+      if (cleanPassword.length < 8) return setError('Password must be at least 8 characters.');
+      if (cleanPassword !== data.confirm) return setError('Passwords do not match.');
       const age = Number(data.age);
       if (data.age && (age < 5 || age > 120)) return setError('Please enter a valid age.');
-      data.name = `${data.firstName} ${data.lastName}`.trim();
     }
+
     setError('');
     setSubmitting(true);
     
     try {
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-      let user = null;
-      const isTest = import.meta.env?.MODE === 'test';
-
-      if (isTest) {
-        user = { name: data.name || (isLogin ? data.email.split('@')[0] : 'Learner') };
+      let resData;
+      if (isLogin) {
+        resData = await authApi.login({
+          email: cleanEmail,
+          password: cleanPassword,
+        });
       } else {
-        try {
-          const apiUrl = (import.meta.env?.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
-          const res = await fetch(`${apiUrl}${endpoint}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(data),
-          });
-
-          if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            const errMsg = typeof errData.error === 'string'
-              ? errData.error
-              : (errData.error?.message || errData.message || 'Authentication failed');
-            throw new Error(errMsg);
-          }
-
-          const resJson = await res.json();
-          user = resJson.user || resJson.data?.user;
-          const token = resJson.token || resJson.data?.token;
-          if (token) {
-            try { localStorage.setItem('conceptflow_token', token); } catch {}
-          }
-        } catch (networkErr) {
-          if (networkErr.message.includes('fetch') || networkErr.message.includes('Failed to fetch') || networkErr.message.includes('ECONNREFUSED') || networkErr.message.includes('NetworkError')) {
-            user = { name: data.name || (isLogin ? data.email.split('@')[0] : 'Learner') };
-          } else {
-            throw networkErr;
-          }
-        }
+        const computedName = `${data.firstName || ''} ${data.lastName || ''}`.trim() || data.name || 'Learner';
+        resData = await authApi.register({
+          name: computedName,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: cleanEmail,
+          password: cleanPassword,
+          age: data.age ? Number(data.age) : undefined,
+          dob: data.dob || undefined,
+          address: data.address || undefined,
+        });
       }
+
+      const user = resData?.user || resData?.data?.user || { email: cleanEmail, name: 'Learner' };
 
       dispatch({
         type: 'user/login',
-        name: user?.name || data.name || 'Learner',
-        user: user || { name: data.name || (isLogin ? data.email.split('@')[0] : 'Learner') },
+        name: user.name || 'Learner',
+        user: user,
       });
       navigateTo('dashboard');
     } catch (err) {
+      console.warn('[AuthPage] Authentication error:', err.message);
       setError(err.message || 'Authentication failed. Please check your credentials.');
     } finally {
       setSubmitting(false);

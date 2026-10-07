@@ -155,32 +155,34 @@ const getDashboardData = async (req, res) => {
       [userId]
     );
 
-    // 9. Active sessions with concept progress
-    const activeSessionsResult = await db.query(
+    // 9. All User Sessions with concept progress
+    const sessionsWithProgress = await db.query(
       `SELECT ls.id, ls.topic, ls.status, ls.progress_percentage, ls.current_concept_id, ls.updated_at,
-              lc.title AS current_concept_title, lc.order_index AS current_concept_index,
+              COALESCE(lc.title, (SELECT title FROM learning_concepts WHERE session_id = ls.id ORDER BY order_index DESC LIMIT 1)) AS current_concept_title,
+              COALESCE(lc.order_index, (SELECT order_index FROM learning_concepts WHERE session_id = ls.id ORDER BY order_index DESC LIMIT 1)) AS current_concept_index,
               COUNT(all_c.id)::INTEGER AS total_concepts,
               SUM(CASE WHEN all_c.status = 'completed' THEN 1 ELSE 0 END)::INTEGER AS completed_concepts
        FROM learning_sessions ls
        LEFT JOIN learning_concepts lc ON ls.current_concept_id = lc.id
        LEFT JOIN learning_concepts all_c ON all_c.session_id = ls.id
-       WHERE ls.user_id = $1 AND ls.status = 'active'
+       WHERE ls.user_id = $1
        GROUP BY ls.id, lc.title, lc.order_index
-       ORDER BY ls.updated_at DESC`,
+       ORDER BY (CASE WHEN ls.status = 'active' THEN 0 ELSE 1 END) ASC, ls.updated_at DESC`,
       [userId]
     );
 
-    const activeSession = activeSessionsResult.rows[0] || null;
+    const activeSessionsList = sessionsWithProgress.rows.filter(s => s.status === 'active');
+    const primarySession = sessionsWithProgress.rows[0] || null;
 
-    // Load full concept chain for currently active session (for Learning Journey visualization)
+    // Load full concept chain for currently active or primary session (for Learning Journey visualization)
     let activeSessionConcepts = [];
-    if (activeSession?.id) {
+    if (primarySession?.id) {
       const ascRes = await db.query(
         `SELECT id, title, status, score, order_index
          FROM learning_concepts
          WHERE session_id = $1
          ORDER BY order_index ASC`,
-        [activeSession.id]
+        [primarySession.id]
       );
       activeSessionConcepts = ascRes.rows;
     }
@@ -282,15 +284,17 @@ const getDashboardData = async (req, res) => {
         reason: `Your recent score was ${areasToImprove[0].score}%. Revisit this concept before moving forward.`,
         actionLabel: 'Review Concept',
       };
-    } else if (activeSession) {
+    } else if (primarySession) {
       nextRecommendedFocus = {
-        title: activeSession.current_concept_title || activeSession.topic,
-        topic: activeSession.topic,
-        sessionId: activeSession.id,
-        conceptId: activeSession.current_concept_id,
+        title: primarySession.current_concept_title || primarySession.topic,
+        topic: primarySession.topic,
+        sessionId: primarySession.id,
+        conceptId: primarySession.current_concept_id,
         score: null,
-        reason: `Continue where you left off in ${activeSession.topic}.`,
-        actionLabel: 'Continue Learning',
+        reason: primarySession.status === 'completed'
+          ? `You completed ${primarySession.topic}! Test your knowledge with the track quiz.`
+          : `Continue where you left off in ${primarySession.topic}.`,
+        actionLabel: primarySession.status === 'completed' ? 'Take Quiz' : 'Continue Learning',
       };
     }
 
@@ -346,15 +350,17 @@ const getDashboardData = async (req, res) => {
       user,
       stats: statsData,
       mastery: masteryData,
-      activeSessions: activeSessionsResult.rows,
+      activeSessions: activeSessionsList.length > 0 ? activeSessionsList : (primarySession ? [primarySession] : []),
       recentSessions: recentSessions.rows,
-      activeSessionId: activeSession?.id || null,
+      activeSessionId: primarySession?.id || null,
+      activeSession: primarySession,
       activeSessionConcepts,
-      currentConcept: activeSession
+      currentConcept: primarySession
         ? {
-            id: activeSession.current_concept_id,
-            title: activeSession.current_concept_title,
-            order_index: activeSession.current_concept_index,
+            id: primarySession.current_concept_id || (activeSessionConcepts.length > 0 ? activeSessionConcepts[activeSessionConcepts.length - 1].id : null),
+            title: primarySession.current_concept_title || (primarySession.status === 'completed' ? 'All concepts completed' : primarySession.topic),
+            order_index: primarySession.current_concept_index || 6,
+            isCompleted: primarySession.status === 'completed',
           }
         : null,
     };

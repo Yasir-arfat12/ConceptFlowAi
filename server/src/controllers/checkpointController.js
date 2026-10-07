@@ -14,13 +14,12 @@ const { completeConcept } = require('../services/learningService');
 const { evaluateCheckpoint: evaluatePrebuilt } = require('../data/prebuiltBinarySearch');
 const { evaluateCheckpoint: evaluateWithAI, scoringService, isConfigured: aiAvailable } = require('../services/aiService');
 const { recalculateSessionMastery, getSessionMasterySnapshot } = require('../services/masteryService');
+const { isPrebuiltTopic } = require('../data/prebuiltTopics');
 
 const PASS_SCORE = parseInt(process.env.CHECKPOINT_PASS_SCORE || '60', 10);
-const BINARY_SEARCH_KEYWORDS = ['binary search', 'binary-search', 'binarysearch'];
 
 function isPrebuiltSession(topic) {
-  const normalized = (topic || '').trim().toLowerCase();
-  return BINARY_SEARCH_KEYWORDS.some((kw) => normalized.includes(kw));
+  return isPrebuiltTopic(topic);
 }
 
 /**

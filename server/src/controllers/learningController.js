@@ -16,8 +16,15 @@ const db = require('../config/db');
 const {
   createLearningSession,
   getSessionWithConcepts,
-  isPrebuiltTopic,
 } = require('../services/learningService');
+const {
+  isPrebuiltTopic,
+  getPrebuiltTopicData,
+  resolvePrebuiltTopic,
+  getAllPrebuiltTopics,
+  getPrebuiltAssignmentGenerator,
+  getPrebuiltAssignmentEvaluator,
+} = require('../data/prebuiltTopics');
 const {
   binarySearchData,
   evaluateAssignment,
@@ -58,22 +65,28 @@ const startLearning = async (req, res) => {
     }
 
     const cleanTopic = topic.trim();
+    const prebuiltEntry = resolvePrebuiltTopic(cleanTopic);
 
     // If requested, check for an existing active session for this topic to avoid duplicate active sessions
     if (resumeIfExists) {
-      const isBS = isPrebuiltTopic(cleanTopic);
-      const existingQuery = isBS
-        ? `SELECT id FROM learning_sessions 
+      let existingRes;
+      if (prebuiltEntry) {
+        existingRes = await db.query(
+          `SELECT id FROM learning_sessions 
            WHERE user_id = $1 AND status = 'active' AND (
-             LOWER(topic) LIKE '%binary search%' OR LOWER(topic) LIKE '%binary-search%' OR LOWER(topic) LIKE '%binarysearch%'
+             LOWER(topic) = LOWER($2) OR LOWER(topic) LIKE $3
            )
-           ORDER BY updated_at DESC LIMIT 1`
-        : `SELECT id FROM learning_sessions 
+           ORDER BY updated_at DESC LIMIT 1`,
+          [userId, prebuiltEntry.canonicalTitle, `%${prebuiltEntry.key}%`]
+        );
+      } else {
+        existingRes = await db.query(
+          `SELECT id FROM learning_sessions 
            WHERE user_id = $1 AND status = 'active' AND LOWER(TRIM(topic)) = LOWER(TRIM($2))
-           ORDER BY updated_at DESC LIMIT 1`;
-      
-      const existingParams = isBS ? [userId] : [userId, cleanTopic];
-      const existingRes = await db.query(existingQuery, existingParams);
+           ORDER BY updated_at DESC LIMIT 1`,
+          [userId, cleanTopic]
+        );
+      }
 
       if (existingRes.rows.length > 0) {
         const existingSessionId = existingRes.rows[0].id;
@@ -118,7 +131,8 @@ const startLearning = async (req, res) => {
       }
     }
 
-    const result = await createLearningSession(userId, cleanTopic);
+    const topicToCreate = prebuiltEntry ? prebuiltEntry.canonicalTitle : cleanTopic;
+    const result = await createLearningSession(userId, topicToCreate);
 
     return res.status(201).json({
       success: true,
@@ -163,7 +177,7 @@ const startLearning = async (req, res) => {
         success: false,
         error: {
           code: 'AI_NOT_CONFIGURED',
-          message: 'AI service is not configured. Only prebuilt topics (like "Binary Search") are available without an API key.',
+          message: 'AI service is not configured. Prebuilt topics (Binary Search, Stack, Linked List, Binary Tree) are available without an API key.',
         },
       });
     }
@@ -185,7 +199,7 @@ const startLearning = async (req, res) => {
 /**
  * GET /api/learning/preview?topic=...
  * Returns structured curriculum preview from database/prebuilt data.
- * Checks if topic is supported (currently Binary Search).
+ * Checks if topic is supported (Binary Search, Stack, Linked List, Binary Tree).
  */
 const getLearningPreview = async (req, res) => {
   try {
@@ -198,23 +212,23 @@ const getLearningPreview = async (req, res) => {
     }
 
     const cleanTopic = topic.trim();
-    const isBS = isPrebuiltTopic(cleanTopic);
+    const prebuiltData = getPrebuiltTopicData(cleanTopic);
 
-    if (isBS) {
+    if (prebuiltData) {
       return res.status(200).json({
         success: true,
         data: {
           isSupported: true,
-          topic: binarySearchData.topic,
-          description: 'Master Binary Search from fundamentals to implementation, edge cases, and algorithmic complexity.',
-          totalConcepts: binarySearchData.concepts.length,
-          features: [
-            `${binarySearchData.concepts.length} Interactive Concepts`,
+          topic: prebuiltData.topic,
+          description: prebuiltData.description,
+          totalConcepts: prebuiltData.concepts.length,
+          features: prebuiltData.features || [
+            `${prebuiltData.concepts.length} Interactive Concepts`,
             'Checkpoint Knowledge Checks',
             'Progressive Difficulty Scaling',
             'PostgreSQL Cloud Session Sync',
           ],
-          concepts: binarySearchData.concepts.map((c, i) => ({
+          concepts: prebuiltData.concepts.map((c, i) => ({
             orderIndex: i + 1,
             title: c.title,
             keyTakeaways: c.keyTakeaways || '',
@@ -228,8 +242,8 @@ const getLearningPreview = async (req, res) => {
       data: {
         isSupported: false,
         topic: cleanTopic,
-        message: 'More learning paths are coming soon. Binary Search is currently available with full interactive checkpoints.',
-        supportedTopics: ['Binary Search'],
+        message: 'More learning paths are coming soon. Binary Search, Stack, Linked List, and Binary Tree are currently available with full interactive checkpoints.',
+        supportedTopics: ['Binary Search', 'Stack', 'Linked List', 'Binary Tree'],
       },
     });
   } catch (err) {
@@ -240,6 +254,7 @@ const getLearningPreview = async (req, res) => {
     });
   }
 };
+
 
 /**
  * GET /api/learning
@@ -507,14 +522,31 @@ const createQuiz = async (req, res) => {
     const weakConcepts = await getWeakConcepts(sessionId, userId);
 
     let questions;
-    if (isPrebuiltTopic(session.topic)) {
-      // Map concept IDs to prebuilt questions based on conceptIndex
-      questions = binarySearchData.quiz.questions.map((q) => {
-        const matchingConcept = concepts.find((c) => c.order_index === q.conceptIndex) || concepts[0];
+    const prebuiltData = getPrebuiltTopicData(session.topic);
+    if (prebuiltData && prebuiltData.quiz) {
+      const rawQuizQuestions = Array.isArray(prebuiltData.quiz)
+        ? prebuiltData.quiz
+        : (prebuiltData.quiz.questions || []);
+
+      questions = rawQuizQuestions.map((q, idx) => {
+        const matchingConcept = concepts.find((c) => c.order_index === q.conceptIndex || c.order_index === idx + 1) || concepts[0];
+        const correctOptIdx = typeof q.correctOptionIndex === 'number'
+          ? q.correctOptionIndex
+          : (typeof q.correctAnswer === 'number'
+              ? q.correctAnswer
+              : (q.correctAnswer === 'B' ? 1 : q.correctAnswer === 'C' ? 2 : q.correctAnswer === 'D' ? 3 : 0));
+
         return {
-          ...q,
-          conceptId: matchingConcept?.id || q.conceptIndex,
-          conceptTitle: matchingConcept?.title || q.conceptTitle,
+          id: q.id || `q_${idx + 1}`,
+          type: q.type || 'single_select',
+          question: q.question,
+          options: q.options,
+          correctOptionIndex: correctOptIdx,
+          correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : correctOptIdx,
+          explanation: q.explanation || '',
+          hint: q.hint || '',
+          conceptId: matchingConcept?.id || q.conceptIndex || idx + 1,
+          conceptTitle: matchingConcept?.title || q.conceptTitle || `Concept ${idx + 1}`,
         };
       });
     } else {
@@ -842,7 +874,12 @@ async function generateAndSaveAssignment(sessionId, userId, sessionTopic) {
   const weakConcepts = await getWeakConcepts(sessionId, userId);
 
   let assignmentData;
-  if (isPrebuiltTopic(session.topic || sessionTopic)) {
+  const topicToUse = session.topic || sessionTopic;
+  const topicGenerator = getPrebuiltAssignmentGenerator(topicToUse);
+
+  if (topicGenerator) {
+    assignmentData = topicGenerator(concepts, weakConcepts, snapshot);
+  } else if (isPrebuiltTopic(topicToUse)) {
     const { generatePrebuiltBinarySearchAssignment } = require('../data/prebuiltBinarySearch');
     assignmentData = generatePrebuiltBinarySearchAssignment(concepts, weakConcepts, snapshot);
   } else {
@@ -1345,7 +1382,10 @@ const submitAssignment = async (req, res) => {
 
     // If legacy text submission
     if (submission && typeof submission === 'string' && questions.length === 0) {
-      const evalResult = isPrebuiltTopic(session.topic) ? evaluateAssignment(submission) : { score: 80, feedback: 'Solution verified.' };
+      const topicEvaluator = getPrebuiltAssignmentEvaluator(session.topic);
+      const evalResult = topicEvaluator
+        ? topicEvaluator(submission)
+        : (isPrebuiltTopic(session.topic) ? evaluateAssignment(submission) : { score: 80, feedback: 'Solution verified.' });
       const now = new Date().toISOString();
       await db.query(
         'UPDATE assignments SET result = $1, score = $2, status = $3, completed_at = $4 WHERE session_id = $5',

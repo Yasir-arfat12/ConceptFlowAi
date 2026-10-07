@@ -97,6 +97,9 @@ export default function Quiz({ params, goBack, navigateTo }) {
 
         if (active && selected) {
           setSession(selected);
+          if (targetSessionId) {
+            loadSessionQuiz(selected);
+          }
         }
       } catch (err) {
         console.warn('[Quiz] Session init note:', err.message);
@@ -132,13 +135,19 @@ export default function Quiz({ params, goBack, navigateTo }) {
         if (Array.isArray(opts) && typeof opts[0] === 'object' && opts[0].label) {
           opts = opts.map((o) => o.label);
         }
+        const correctIdx = typeof q.correctOptionIndex === 'number'
+          ? q.correctOptionIndex
+          : (typeof q.correctAnswer === 'number'
+              ? q.correctAnswer
+              : (q.correctAnswer === 'B' ? 1 : q.correctAnswer === 'C' ? 2 : q.correctAnswer === 'D' ? 3 : 0));
+
         return {
           id: q.id || `q_${i + 1}`,
           conceptId: q.conceptId,
           conceptTitle: q.conceptTitle || `Concept ${i + 1}`,
           q: q.question,
           options: opts || [],
-          answer: q.correctOptionIndex ?? 0,
+          answer: correctIdx,
           explanation: q.explanation || 'Review the concept material for more details.',
           help: q.hint || '',
         };
@@ -311,16 +320,22 @@ export default function Quiz({ params, goBack, navigateTo }) {
         {session && (
           <div className="p-6 rounded-2xl border border-[#22D3EE]/30 bg-[#22D3EE]/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <span className="text-[10px] font-bold text-[#22D3EE] uppercase tracking-wider">Active Session Detected</span>
+              <span className="text-[10px] font-bold text-[#22D3EE] uppercase tracking-wider">
+                {session.status === 'completed' ? '🎉 Completed Track' : '⚡ Active Track Detected'}
+              </span>
               <h3 className="text-lg font-bold text-white mt-1">{session.topic}</h3>
-              <p className="text-xs text-white/60 mt-1">Generated from your checkpoint responses and weak concepts.</p>
+              <p className="text-xs text-white/60 mt-1">
+                {session.status === 'completed' 
+                  ? `You completed all ${session.topic} concepts! Test your mastery with this final assessment.`
+                  : `Generated from your checkpoint responses in ${session.topic}.`}
+              </p>
             </div>
             <button
               onClick={() => loadSessionQuiz(session)}
               className="px-5 py-2.5 bg-[#22D3EE] text-black font-semibold text-[13px] rounded-xl hover:bg-[#22D3EE]/90 transition-all flex items-center gap-2 shrink-0 cursor-pointer shadow-md"
             >
               <Sparkles className="w-4 h-4 fill-current" />
-              Start Session Quiz
+              Start {session.topic} Quiz
             </button>
           </div>
         )}

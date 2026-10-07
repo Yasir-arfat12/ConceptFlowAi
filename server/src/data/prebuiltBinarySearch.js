@@ -8,6 +8,8 @@ const PASS_SCORE = parseInt(process.env.CHECKPOINT_PASS_SCORE || '60', 10);
 
 const binarySearchData = {
   topic: 'Binary Search',
+  category: 'Algorithms',
+  description: 'Master divide-and-conquer searching on sorted arrays, two-pointer bounds calculation, overflow prevention, and edge cases in O(log n) time.',
 
   concepts: [
     {
@@ -918,9 +920,10 @@ function evaluateCheckpoint(answer, expectedKeywords) {
   const ratio = matchCount / expectedKeywords.length;
   let score, feedback, masteryLevel;
 
-  if (ratio >= 0.4 || matchCount >= 2) {
-    score = Math.min(100, Math.round(60 + ratio * 40));
-    isCorrectVal = true;
+  const words = answer.trim().split(/\s+/);
+  if (ratio >= 0.25 || matchCount >= 2 || (matchCount >= 1 && words.length >= 6)) {
+    score = Math.min(100, Math.round(60 + Math.max(ratio, 0.25) * 40));
+    isCorrectVal = score >= PASS_SCORE;
     masteryLevel = score >= 80 ? 'strong_understanding' : 'good_understanding';
     feedback = score >= 90
       ? 'Excellent! You covered all the key points.'
@@ -945,13 +948,14 @@ function evaluateCheckpoint(answer, expectedKeywords) {
  * Returns a string answer or null if no match.
  */
 function evaluateDoubt(question) {
+  if (!question || typeof question !== 'string') return null;
   const qLower = question.toLowerCase();
   for (const response of binarySearchData.doubtResponses) {
     if (response.keywords.some((kw) => qLower.includes(kw.toLowerCase()))) {
       return response.answer;
     }
   }
-  return null; // No match — caller should fallback to AI or generic response
+  return null;
 }
 
 /**

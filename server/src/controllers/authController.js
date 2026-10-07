@@ -40,10 +40,13 @@ const register = async (req, res) => {
       ? req.body.name.trim()
       : (req.body.firstName ? `${req.body.firstName} ${req.body.lastName || ''}`.trim() : '');
 
+    const rawEmail = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const rawPassword = typeof req.body.password === 'string' ? req.body.password : '';
+
     const payload = {
-      name: rawName,
-      email: typeof req.body.email === 'string' ? req.body.email.trim() : '',
-      password: typeof req.body.password === 'string' ? req.body.password : '',
+      name: rawName || 'Learner',
+      email: rawEmail,
+      password: rawPassword,
     };
 
     const parsed = registerSchema.safeParse(payload);
@@ -60,7 +63,7 @@ const register = async (req, res) => {
     const { name, email, password } = parsed.data;
     const normalizedEmail = email.toLowerCase().trim();
 
-    const existing = await db.query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
+    const existing = await db.query('SELECT id FROM users WHERE LOWER(TRIM(email)) = $1', [normalizedEmail]);
     if (existing.rows.length > 0) {
       const msg = 'An account with this email already exists.';
       return res.status(409).json({
@@ -102,9 +105,12 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
   try {
-    const parsed = loginSchema.safeParse(req.body);
+    const rawEmail = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const rawPassword = typeof req.body.password === 'string' ? req.body.password : '';
+
+    const parsed = loginSchema.safeParse({ email: rawEmail, password: rawPassword });
     if (!parsed.success) {
-      const msg = parsed.error.errors[0].message;
+      const msg = parsed.error.issues?.[0]?.message || parsed.error.errors?.[0]?.message || 'Invalid email or password.';
       return res.status(422).json({
         success: false,
         error: msg,
@@ -116,7 +122,7 @@ const login = async (req, res) => {
     const { email, password } = parsed.data;
     const normalizedEmail = email.toLowerCase().trim();
 
-    const result = await db.query('SELECT * FROM users WHERE email = $1', [normalizedEmail]);
+    const result = await db.query('SELECT * FROM users WHERE LOWER(TRIM(email)) = $1', [normalizedEmail]);
     if (result.rows.length === 0) {
       const msg = 'Invalid email or password.';
       return res.status(401).json({

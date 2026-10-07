@@ -19,9 +19,11 @@ import DoubtDrawer from '../components/DoubtDrawer';
 
 const SUGGESTED_TOPIC_PILLS = [
   { name: 'Binary Search', ready: true, label: 'Binary Search' },
+  { name: 'Stack', ready: true, label: 'Stack' },
+  { name: 'Linked List', ready: true, label: 'Linked List' },
+  { name: 'Binary Tree', ready: true, label: 'Binary Tree' },
   { name: 'Dynamic Programming', ready: false, label: 'Dynamic Programming' },
   { name: 'Graph Algorithms', ready: false, label: 'Graph Algorithms' },
-  { name: 'System Design', ready: false, label: 'System Design' },
 ];
 
 export default function Planner({ navigateTo, goBack }) {
@@ -43,7 +45,7 @@ export default function Planner({ navigateTo, goBack }) {
         setIsGenerating(true);
         setErrorMsg('');
 
-        // 1. Fetch curriculum preview from backend
+        // 1. Fetch curriculum preview from backend for initial topic
         const previewRes = await learningApi.getPreview('Binary Search');
         const preview = previewRes?.data || previewRes;
 
@@ -54,7 +56,10 @@ export default function Planner({ navigateTo, goBack }) {
           const sessionsRes = await learningApi.getSessions();
           const sessions = sessionsRes?.data?.sessions || sessionsRes?.sessions || [];
           existingActive = sessions.find(
-            (s) => (s.topic?.toLowerCase().includes('binary search') || s.topic?.toLowerCase().includes('binary-search')) && s.status === 'active'
+            (s) => s.status === 'active' && (
+              s.topic?.toLowerCase().includes('binary search') ||
+              s.topic?.toLowerCase().includes('binary-search')
+            )
           );
 
           if (existingActive) {
@@ -101,13 +106,18 @@ export default function Planner({ navigateTo, goBack }) {
       const preview = previewRes?.data || previewRes;
       setPlanData(preview);
 
-      // If supported (Binary Search), check if user has an active session
-      if (preview?.isSupported) {
+      // If supported topic, check if user has an active session for this topic
+      if (preview?.isSupported && preview.topic) {
         try {
           const sessionsRes = await learningApi.getSessions();
           const sessions = sessionsRes?.data?.sessions || sessionsRes?.sessions || [];
+          const canonical = preview.topic.toLowerCase().trim();
           const existing = sessions.find(
-            (s) => (s.topic?.toLowerCase().includes('binary search') || s.topic?.toLowerCase().includes('binary-search')) && s.status === 'active'
+            (s) => s.status === 'active' && (
+              s.topic?.toLowerCase().trim() === canonical ||
+              s.topic?.toLowerCase().includes(canonical) ||
+              canonical.includes(s.topic?.toLowerCase().trim() || '')
+            )
           );
 
           if (existing) {
@@ -149,7 +159,8 @@ export default function Planner({ navigateTo, goBack }) {
       }
 
       // Otherwise create or resume a session from backend
-      const res = await learningApi.startSession('Binary Search', { resumeIfExists: true });
+      const targetTopic = planData?.topic || topic || 'Binary Search';
+      const res = await learningApi.startSession(targetTopic, { resumeIfExists: true });
       const data = res?.data || res;
       const targetSession = data?.session || data;
 
@@ -175,40 +186,38 @@ export default function Planner({ navigateTo, goBack }) {
   const concepts = planData?.concepts || [];
 
   return (
-    <div className="w-full h-full bg-[#050508] text-white flex flex-col relative overflow-hidden font-sans">
-      {/* Background ambient lighting */}
-      <div className="absolute top-0 right-1/4 w-[400px] h-[300px] bg-violet-600/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-10 left-1/4 w-[350px] h-[300px] bg-blue-600/10 blur-[120px] pointer-events-none" />
+    <div className="w-full h-full bg-transparent flex flex-col relative overflow-hidden font-sans text-white">
+      {/* Background subtle ambient lighting aligned with Quiz UX */}
+      <div className="absolute top-0 right-1/4 w-[400px] h-[300px] bg-[#22D3EE]/5 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-10 left-1/4 w-[350px] h-[300px] bg-white/[0.02] blur-[120px] pointer-events-none" />
 
       {/* Top Header */}
-      <header className="h-[64px] border-b border-white/[0.08] flex items-center justify-between px-4 sm:px-8 bg-[#07070a]/80 backdrop-blur-md z-20 shrink-0">
+      <header className="h-[60px] border-b border-white/5 flex items-center justify-between px-4 sm:px-8 bg-transparent z-20 shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={() => goBack?.()}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors shrink-0 cursor-pointer"
             aria-label="Go back"
             title="Go back"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div>
-            <h1 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Compass className="w-4 h-4 text-violet-400" />
-              Interactive Study Planner
-            </h1>
+          <div className="flex items-center gap-2">
+            <Compass className="w-4 h-4 text-[#22D3EE]" />
+            <h1 className="text-sm font-semibold text-white">Study Planner</h1>
           </div>
         </div>
       </header>
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto relative scrollbar-hide py-8 sm:py-10 px-4 sm:px-8">
-        <div className="max-w-[900px] mx-auto flex flex-col gap-8">
+        <div className="max-w-[800px] mx-auto flex flex-col gap-6">
           
           {/* ═══════════════════════════════════════════════════════════════
               SECTION 1: SEARCH / TOPIC INPUT
               ═══════════════════════════════════════════════════════════════ */}
-          <div className="rounded-2xl bg-[#0b0b10] border border-white/10 p-6 sm:p-8 shadow-xl relative overflow-hidden">
-            <div className="flex items-center gap-2 text-xs font-semibold text-violet-400 uppercase tracking-wider mb-2">
+          <div className="rounded-2xl bg-[#121212] border border-white/10 p-6 sm:p-7 relative overflow-hidden">
+            <div className="flex items-center gap-2 text-[11px] font-semibold text-[#22D3EE] uppercase tracking-wider mb-2">
               <Sparkles className="w-3.5 h-3.5" />
               What do you want to learn?
             </div>
@@ -231,23 +240,23 @@ export default function Planner({ navigateTo, goBack }) {
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
                   disabled={isGenerating || isStarting}
-                  placeholder="e.g. Binary Search"
-                  className="w-full bg-[#121218] border border-white/15 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all disabled:opacity-60"
+                  placeholder="e.g. Stack, Linked List, Binary Tree, Binary Search"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[14px] text-white placeholder-white/30 focus:outline-none focus:border-[#22D3EE]/50 focus:ring-1 focus:ring-[#22D3EE]/50 transition-all disabled:opacity-60"
                 />
               </div>
               <button
                 type="submit"
                 disabled={isGenerating || isStarting || !topic.trim()}
-                className="px-6 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-sm font-semibold rounded-xl transition-all shadow-lg hover:shadow-violet-600/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                className="px-6 py-3 bg-[#22D3EE] text-black text-[13px] font-semibold rounded-xl hover:bg-[#22D3EE]/90 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0 cursor-pointer"
               >
                 {isGenerating ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin text-black" />
                     Planning...
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-4 h-4" />
+                    <Sparkles className="w-4 h-4 fill-current text-black" />
                     Generate Plan
                   </>
                 )}
@@ -256,7 +265,7 @@ export default function Planner({ navigateTo, goBack }) {
 
             {/* Quick Suggestions */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className="text-xs text-white/40 mr-1 font-medium">Suggestions:</span>
+              <span className="text-xs text-white/40 mr-1 font-medium">Popular Paths:</span>
               {SUGGESTED_TOPIC_PILLS.map((pill) => (
                 <button
                   key={pill.name}
@@ -264,13 +273,13 @@ export default function Planner({ navigateTo, goBack }) {
                   disabled={isGenerating || isStarting}
                   className={`text-xs px-3 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 ${
                     topic.toLowerCase() === pill.label.toLowerCase()
-                      ? 'bg-violet-500/15 border-violet-500/40 text-violet-300 font-medium'
+                      ? 'bg-[#22D3EE]/10 border-[#22D3EE]/30 text-[#22D3EE] font-medium'
                       : 'bg-white/[0.03] border-white/10 text-white/60 hover:text-white hover:border-white/20'
                   }`}
                 >
                   {pill.name}
                   {pill.ready ? (
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#10B981]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] shadow-[0_0_6px_#10B981]" />
                   ) : (
                     <span className="text-[10px] text-white/40 font-mono">soon</span>
                   )}
@@ -287,19 +296,19 @@ export default function Planner({ navigateTo, goBack }) {
           </div>
 
           {/* ═══════════════════════════════════════════════════════════════
-              SECTION 2: PLAN RESULTS (SUPPORTED: BINARY SEARCH)
+              SECTION 2: PLAN RESULTS (SUPPORTED TOPICS)
               ═══════════════════════════════════════════════════════════════ */}
           {isSupported && planData && (
             <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-3 duration-500">
               
               {/* Plan Card */}
-              <div className="rounded-2xl bg-[#0b0b10] border border-white/10 p-6 sm:p-8 shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-80 h-80 bg-violet-600/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="rounded-2xl bg-[#121212] border border-white/10 p-6 sm:p-8 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-80 h-80 bg-[#22D3EE]/5 rounded-full blur-3xl pointer-events-none" />
 
                 {/* Card Top / Header */}
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6 relative z-10">
                   <div>
-                    <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-[#22D3EE] uppercase tracking-wider mb-2">
                       <Zap className="w-3.5 h-3.5" />
                       Verified Curriculum • Ready to Learn
                     </div>
@@ -313,9 +322,9 @@ export default function Planner({ navigateTo, goBack }) {
 
                   {/* Active Status Badge if session exists */}
                   {activeSession && (
-                    <div className="sm:self-start bg-emerald-500/10 border border-emerald-500/25 px-3.5 py-2 rounded-xl text-left shrink-0">
-                      <div className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5 mb-0.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <div className="sm:self-start bg-[#22D3EE]/10 border border-[#22D3EE]/25 px-3.5 py-2 rounded-xl text-left shrink-0">
+                      <div className="text-[11px] font-semibold text-[#22D3EE] uppercase tracking-wider flex items-center gap-1.5 mb-0.5">
+                        <span className="w-2 h-2 rounded-full bg-[#22D3EE] animate-pulse" />
                         Session in progress
                       </div>
                       <div className="text-xs text-white/70 font-medium">
@@ -335,9 +344,9 @@ export default function Planner({ navigateTo, goBack }) {
                   ]).map((feat, idx) => (
                     <div
                       key={idx}
-                      className="p-3 rounded-xl bg-[#121218] border border-white/5 text-xs text-white/80 font-medium flex items-center gap-2"
+                      className="p-3 rounded-xl bg-black/40 border border-white/5 text-xs text-white/80 font-medium flex items-center gap-2"
                     >
-                      <Check className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                      <Check className="w-3.5 h-3.5 text-[#22D3EE] shrink-0" />
                       <span>{feat}</span>
                     </div>
                   ))}
@@ -350,21 +359,21 @@ export default function Planner({ navigateTo, goBack }) {
                   <button
                     onClick={handleStartSession}
                     disabled={isStarting}
-                    className="w-full sm:w-auto min-w-[240px] px-8 py-4 bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 text-white font-bold text-base rounded-xl transition-all duration-200 shadow-xl shadow-indigo-600/30 hover:shadow-indigo-600/40 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed group"
+                    className="w-full sm:w-auto min-w-[240px] px-8 py-4 bg-[#22D3EE] text-black font-bold text-base rounded-xl hover:bg-[#22D3EE]/90 transition-all duration-200 shadow-md shadow-[#22D3EE]/15 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed group"
                   >
                     {isStarting ? (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <Loader2 className="w-5 h-5 animate-spin text-black" />
                         <span>Starting Session...</span>
                       </>
                     ) : activeSession ? (
                       <>
-                        <Play className="w-5 h-5 fill-current" />
+                        <Play className="w-5 h-5 fill-current text-black" />
                         <span>Continue Learning Session →</span>
                       </>
                     ) : (
                       <>
-                        <Play className="w-5 h-5 fill-current" />
+                        <Play className="w-5 h-5 fill-current text-black" />
                         <span>Start Learning Session →</span>
                       </>
                     )}
@@ -380,11 +389,11 @@ export default function Planner({ navigateTo, goBack }) {
               {/* ═══════════════════════════════════════════════════════════════
                   LEARNING JOURNEY TIMELINE
                   ═══════════════════════════════════════════════════════════════ */}
-              <div className="rounded-2xl bg-[#0b0b10] border border-white/10 p-6 sm:p-8 shadow-xl">
+              <div className="rounded-2xl bg-[#121212] border border-white/10 p-6 sm:p-8">
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h4 className="text-base font-bold text-white flex items-center gap-2">
-                      <BrainCircuit className="w-4 h-4 text-violet-400" />
+                      <BrainCircuit className="w-4 h-4 text-[#22D3EE]" />
                       Learning Journey & Concept Milestones
                     </h4>
                     <p className="text-xs text-white/50 mt-1">
@@ -419,7 +428,7 @@ export default function Planner({ navigateTo, goBack }) {
                             isCompleted
                               ? 'bg-emerald-500 text-black shadow-[0_0_10px_rgba(16,185,129,0.4)]'
                               : isActive
-                              ? 'bg-violet-600 text-white ring-4 ring-violet-500/20 shadow-[0_0_10px_rgba(139,92,246,0.5)]'
+                              ? 'bg-[#22D3EE] text-black ring-4 ring-[#22D3EE]/20 shadow-[0_0_10px_rgba(34,211,238,0.5)]'
                               : 'bg-[#181820] border border-white/20 text-white/40'
                           }`}
                         >
@@ -434,10 +443,10 @@ export default function Planner({ navigateTo, goBack }) {
                         <div
                           className={`p-4 rounded-xl border transition-all ${
                             isActive
-                              ? 'bg-[#12121c] border-violet-500/40 shadow-lg shadow-violet-500/5'
+                              ? 'bg-white/5 border-[#22D3EE]/40 text-white'
                               : isCompleted
-                              ? 'bg-[#0e1410] border-emerald-500/25'
-                              : 'bg-[#0e0e14] border-white/5 hover:border-white/15'
+                              ? 'bg-black/30 border-emerald-500/25'
+                              : 'bg-black/20 border-white/5 hover:border-white/15'
                           }`}
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
@@ -452,8 +461,8 @@ export default function Planner({ navigateTo, goBack }) {
                                 Completed
                               </span>
                             ) : isActive ? (
-                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-violet-500/20 border border-violet-500/40 text-violet-300 flex items-center gap-1 animate-pulse">
-                                <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-[#22D3EE]/15 border border-[#22D3EE]/30 text-[#22D3EE] flex items-center gap-1 animate-pulse">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#22D3EE]" />
                                 Active
                               </span>
                             ) : (
@@ -487,7 +496,7 @@ export default function Planner({ navigateTo, goBack }) {
                   <button
                     onClick={handleStartSession}
                     disabled={isStarting}
-                    className="px-5 py-2.5 bg-white text-black font-semibold text-xs sm:text-sm rounded-lg hover:bg-white/90 transition-colors flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+                    className="px-6 py-2.5 bg-white text-black text-[13px] font-semibold rounded-md hover:bg-white/90 transition-colors flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
                   >
                     {isStarting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
                     {activeSession ? 'Continue Learning' : 'Start Concept 1'}
@@ -501,7 +510,7 @@ export default function Planner({ navigateTo, goBack }) {
               SECTION 3: UNSUPPORTED TOPIC / COMING SOON STATE
               ═══════════════════════════════════════════════════════════════ */}
           {!isSupported && planData && (
-            <div className="rounded-2xl bg-[#0b0b10] border border-white/10 p-6 sm:p-8 shadow-xl relative overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-500">
+            <div className="rounded-2xl bg-[#121212] border border-white/10 p-6 sm:p-8 relative overflow-hidden animate-in fade-in slide-in-from-bottom-3 duration-500">
               <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">
                 <Clock className="w-3.5 h-3.5" />
                 Coming Soon
@@ -511,34 +520,35 @@ export default function Planner({ navigateTo, goBack }) {
                 Learning Path for "{topic}" is in Development
               </h3>
               
-              <p className="text-sm text-white/60 leading-relaxed max-w-xl mb-8">
-                To guarantee top pedagogical quality and deterministic grading, our AI learning engine currently features verified curriculum and checkpoints for <strong>Binary Search</strong>. Additional data structure & algorithm topics are rolling out shortly.
+              <p className="text-sm text-white/60 leading-relaxed max-w-xl mb-6">
+                To guarantee top pedagogical quality and deterministic grading, our AI learning engine currently features verified pre-fed curriculum and checkpoints for <strong>Binary Search</strong>, <strong>Stack</strong>, <strong>Linked List</strong>, and <strong>Binary Tree</strong>.
               </p>
 
-              {/* Spotlight on Binary Search */}
-              <div className="p-6 rounded-xl bg-[#12121a] border border-violet-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-                <div>
-                  <span className="text-[10px] font-bold text-violet-400 uppercase tracking-widest bg-violet-500/10 px-2 py-0.5 rounded border border-violet-500/20">
-                    Featured Topic
-                  </span>
-                  <h4 className="text-lg font-bold text-white mt-2 mb-1">
-                    Binary Search Masterclass
-                  </h4>
-                  <p className="text-xs text-white/60 leading-relaxed max-w-md">
-                    Explore 6 structured concepts, interactive checkpoint grading, edge cases, and algorithmic complexity.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setTopic('Binary Search');
-                    handleGenerate('Binary Search');
-                  }}
-                  className="px-6 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold text-sm rounded-xl transition-all shadow-lg hover:shadow-violet-600/25 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Explore Binary Search →
-                </button>
+              {/* Ready Topics Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                {[
+                  { title: 'Binary Search', desc: 'Divide-and-conquer search algorithm' },
+                  { title: 'Stack', desc: 'LIFO data structure & call stack mechanics' },
+                  { title: 'Linked List', desc: 'Nodes, pointers & list reversal' },
+                  { title: 'Binary Tree', desc: 'Hierarchical trees & DFS traversals' },
+                ].map((item) => (
+                  <button
+                    key={item.title}
+                    onClick={() => {
+                      setTopic(item.title);
+                      handleGenerate(item.title);
+                    }}
+                    className="p-4 rounded-xl bg-black/40 border border-white/10 hover:border-[#22D3EE]/40 transition-all text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <h5 className="font-semibold text-white text-sm group-hover:text-[#22D3EE] transition-colors">
+                        {item.title}
+                      </h5>
+                      <Sparkles className="w-3.5 h-3.5 text-[#22D3EE] opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <p className="text-xs text-white/50">{item.desc}</p>
+                  </button>
+                ))}
               </div>
             </div>
           )}

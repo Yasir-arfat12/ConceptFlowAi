@@ -25,10 +25,10 @@ import { useApp, useUnreadCount } from '../store/AppStore';
 import { dashboardApi, learningApi } from '../lib/api';
 
 const SUGGESTED_TOPICS = [
-  { title: 'Binary Search', desc: 'Divide-and-conquer search algorithm', prompt: 'Teach me Binary Search' },
-  { title: 'Neural Networks', desc: 'Perceptrons, weights & backprop', prompt: 'Teach me Neural Networks' },
-  { title: 'Data Structures', desc: 'Trees, hash maps & graphs', prompt: 'Teach me Data Structures' },
-  { title: 'Linear Algebra', desc: 'Vectors, matrices & transformations', prompt: 'Teach me Linear Algebra' },
+  { title: 'Binary Search', desc: 'Divide-and-conquer logarithmic search', prompt: 'Teach me Binary Search' },
+  { title: 'Stack', desc: 'LIFO structure, operations & call stack', prompt: 'Teach me Stack' },
+  { title: 'Linked List', desc: 'Nodes, pointers, dynamic traversal & reversal', prompt: 'Teach me Linked List' },
+  { title: 'Binary Tree', desc: 'Hierarchical trees, traversals & BST fundamentals', prompt: 'Teach me Binary Tree' },
 ];
 
 export default function Dashboard({ navigateTo }) {
@@ -303,7 +303,7 @@ export default function Dashboard({ navigateTo }) {
               {/* Top Row: Continue Learning & Overall Mastery */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 
-                {/* 1. Continue Learning Card (7 cols) */}
+                {/* 1. Continue Learning / Track Status Card (7 cols) */}
                 <div className="lg:col-span-7 rounded-2xl border border-white/10 bg-[#09090b] p-6 sm:p-7 flex flex-col justify-between relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
                   
@@ -311,20 +311,25 @@ export default function Dashboard({ navigateTo }) {
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
                         <CircleDot className="w-3.5 h-3.5 animate-pulse" />
-                        Current Learning Session
+                        {activeSession?.status === 'completed' ? '🎉 Track Completed' : 'Current Learning Track'}
                       </span>
                       {activeSession && (
                         <span className="text-xs text-white/40 font-mono">
-                          {activeSession.progress_percentage || 0}% complete
+                          {activeSession.progress_percentage || (activeSession.status === 'completed' ? 100 : 0)}% complete
                         </span>
                       )}
                     </div>
 
                     <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-2">
-                      {activeSession?.topic || 'No active session'}
+                      {activeSession?.topic || 'No active track'}
                     </h3>
 
-                    {currentConcept ? (
+                    {activeSession?.status === 'completed' ? (
+                      <p className="text-sm text-emerald-400/90 flex items-center gap-2 mb-6">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>All {activeSession.total_concepts || 6} concepts completed! Ready for assessment.</span>
+                      </p>
+                    ) : currentConcept ? (
                       <p className="text-sm text-white/70 flex items-center gap-2 mb-6">
                         <span className="text-white/40">Currently learning:</span>
                         <strong className="text-white font-medium">"{currentConcept.title}"</strong>
@@ -336,7 +341,7 @@ export default function Dashboard({ navigateTo }) {
                       </p>
                     ) : (
                       <p className="text-sm text-white/50 mb-6">
-                        All concepts in your previous topic are completed. Start another topic or review!
+                        Pick a foundational topic or create a new curriculum to begin.
                       </p>
                     )}
 
@@ -344,13 +349,41 @@ export default function Dashboard({ navigateTo }) {
                     <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden mb-6">
                       <div
                         className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                        style={{ width: `${Math.max(activeSession?.progress_percentage || 0, 5)}%` }}
+                        style={{
+                          width: `${Math.max(
+                            activeSession?.status === 'completed' ? 100 : (activeSession?.progress_percentage || 0),
+                            5
+                          )}%`,
+                        }}
                       />
                     </div>
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-white/5">
-                    {activeSession ? (
+                    {activeSession?.status === 'completed' ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => navigateTo?.(`dashboard/quiz?sessionId=${activeSession.id}`)}
+                          className="px-5 py-2.5 bg-[#22D3EE] text-black font-semibold text-sm rounded-lg hover:bg-[#22D3EE]/90 transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
+                        >
+                          <Sparkles className="w-4 h-4 fill-current" />
+                          Take {activeSession.topic} Quiz
+                        </button>
+                        <button
+                          onClick={() => navigateTo?.(`dashboard/session?sessionId=${activeSession.id}`)}
+                          className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-medium text-sm rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Review Concepts
+                        </button>
+                        <button
+                          onClick={() => navigateTo?.('dashboard/planner')}
+                          className="px-3.5 py-2.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                        >
+                          Start Next Track →
+                        </button>
+                      </div>
+                    ) : activeSession ? (
                       <button
                         onClick={() => navigateTo?.(`dashboard/session?sessionId=${activeSession.id}`)}
                         className="px-5 py-2.5 bg-white text-black font-semibold text-sm rounded-lg hover:bg-white/90 transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
@@ -360,11 +393,11 @@ export default function Dashboard({ navigateTo }) {
                       </button>
                     ) : (
                       <button
-                        onClick={() => navigateTo?.('dashboard/chat')}
+                        onClick={() => navigateTo?.('dashboard/planner')}
                         className="px-5 py-2.5 bg-white text-black font-semibold text-sm rounded-lg hover:bg-white/90 transition-colors flex items-center gap-2 cursor-pointer"
                       >
                         <Play className="w-4 h-4 fill-current" />
-                        Start New Topic
+                        Explore Learning Tracks
                       </button>
                     )}
 
